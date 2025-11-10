@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FAQ Bot - Админ-панель</title>
+
+    <!-- Quill WYSIWYG Editor -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -397,6 +402,42 @@
             font-family: inherit;
         }
 
+        /* Стили для Quill WYSIWYG редактора */
+        .wysiwyg-editor {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .wysiwyg-editor .ql-toolbar {
+            border: none;
+            border-bottom: 2px solid #dee2e6;
+            background: #f8f9fa;
+        }
+
+        .wysiwyg-editor .ql-container {
+            border: none;
+            font-size: 16px;
+            font-family: inherit;
+            min-height: 150px;
+        }
+
+        .wysiwyg-editor .ql-editor {
+            min-height: 150px;
+            padding: 12px;
+            line-height: 1.6;
+        }
+
+        .wysiwyg-editor .ql-editor.ql-blank::before {
+            color: #adb5bd;
+            font-style: normal;
+        }
+
+        .wysiwyg-editor:focus-within {
+            border-color: #667eea;
+        }
+
         .form-actions {
             display: flex;
             gap: 10px;
@@ -563,7 +604,8 @@
                 </div>
                 <div class="form-group">
                     <label>Ответ *</label>
-                    <textarea id="faqAnswer" required></textarea>
+                    <div id="faqAnswerEditor" class="wysiwyg-editor"></div>
+                    <textarea id="faqAnswer" required style="display: none;"></textarea>
                 </div>
                 <div class="form-group">
                     <label>Ключевые слова (через запятую)</label>
@@ -592,6 +634,92 @@
         let currentEditId = null;
         let isSearchActive = false;
         let currentSearchData = null;
+        let answerEditor = null; // Quill редактор для ответа
+
+        // Конвертация Quill HTML в Telegram HTML
+        function convertQuillToTelegramHtml(html) {
+            // Заменяем теги Quill на теги Telegram
+            html = html.replace(/<strong>/g, '<b>');
+            html = html.replace(/<\/strong>/g, '</b>');
+            html = html.replace(/<em>/g, '<i>');
+            html = html.replace(/<\/em>/g, '</i>');
+
+            // Конвертируем code-block в code
+            html = html.replace(/<pre class="ql-syntax"[^>]*>/g, '<code>');
+            html = html.replace(/<\/pre>/g, '</code>');
+
+            // ВАЖНО: Telegram HTML не поддерживает <br>, используем \n
+            // Убираем пустые параграфы
+            html = html.replace(/<p><br><\/p>/g, '\n');
+            html = html.replace(/<p>/g, '');
+            html = html.replace(/<\/p>/g, '\n');
+
+            // Заменяем <br> на \n
+            html = html.replace(/<br>/g, '\n');
+            html = html.replace(/<br\/>/g, '\n');
+            html = html.replace(/<br \/>/g, '\n');
+
+            // Убираем лишние переносы в конце
+            html = html.replace(/\n+$/g, '');
+
+            return html;
+        }
+
+        // Конвертация Telegram HTML в Quill HTML (обратная конвертация)
+        function convertTelegramToQuillHtml(html) {
+            if (!html) return '<p><br></p>';
+
+            // Конвертируем теги Telegram в теги Quill
+            html = html.replace(/<b>/g, '<strong>');
+            html = html.replace(/<\/b>/g, '</strong>');
+            html = html.replace(/<i>/g, '<em>');
+            html = html.replace(/<\/i>/g, '</em>');
+
+            // Конвертируем code в pre
+            html = html.replace(/<code>/g, '<code class="ql-code">');
+
+            // Разбиваем по \n и оборачиваем в <p> теги
+            const lines = html.split('\n');
+            const paragraphs = lines.map(line => {
+                // Если строка пустая, создаем пустой параграф
+                if (line.trim() === '') {
+                    return '<p><br></p>';
+                }
+                // Иначе оборачиваем в <p>
+                return '<p>' + line + '</p>';
+            });
+
+            return paragraphs.join('');
+        }
+
+        // Инициализация Quill редактора
+        function initAnswerEditor() {
+            if (answerEditor) {
+                return; // Уже инициализирован
+            }
+
+            const editorContainer = document.getElementById('faqAnswerEditor');
+            if (!editorContainer) return;
+
+            answerEditor = new Quill(editorContainer, {
+                theme: 'snow',
+                placeholder: 'Введите ответ на вопрос...',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'code'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['clean']
+                    ]
+                }
+            });
+
+            // Синхронизация с textarea
+            answerEditor.on('text-change', () => {
+                const html = answerEditor.root.innerHTML;
+                const telegramHtml = convertQuillToTelegramHtml(html);
+                document.getElementById('faqAnswer').value = telegramHtml;
+            });
+        }
 
         // Поиск FAQ
         async function performSearch() {
@@ -778,6 +906,15 @@
             document.getElementById('faqForm').reset();
             document.getElementById('faqId').value = '';
             await loadCategories();
+
+            // Инициализируем Quill редактор
+            initAnswerEditor();
+
+            // Очищаем редактор
+            if (answerEditor) {
+                answerEditor.setText('');
+            }
+
             document.getElementById('faqModal').classList.add('active');
         }
 
@@ -790,13 +927,29 @@
             document.getElementById('faqId').value = faq.id;
             loadCategories(faq.category);
             document.getElementById('faqQuestion').value = faq.question;
-            document.getElementById('faqAnswer').value = faq.answer;
             document.getElementById('faqKeywords').value = faq.keywords.join(', ');
+
+            // Инициализируем Quill редактор
+            initAnswerEditor();
+
+            // Загружаем ответ в редактор, конвертируя из Telegram HTML
+            if (answerEditor) {
+                const quillHtml = convertTelegramToQuillHtml(faq.answer);
+                answerEditor.root.innerHTML = quillHtml;
+                // Обновляем скрытый textarea
+                const telegramHtml = convertQuillToTelegramHtml(answerEditor.root.innerHTML);
+                document.getElementById('faqAnswer').value = telegramHtml;
+            }
+
             document.getElementById('faqModal').classList.add('active');
         }
 
         function closeModal() {
             document.getElementById('faqModal').classList.remove('active');
+            // Очищаем редактор
+            if (answerEditor) {
+                answerEditor.setText('');
+            }
         }
 
         document.getElementById('faqForm').addEventListener('submit', async (e) => {
