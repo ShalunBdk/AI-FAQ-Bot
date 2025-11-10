@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Логи взаимодействий - FAQ Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .nav-links {
+            padding: 15px 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .nav-links a {
+            color: #667eea;
+            text-decoration: none;
+            margin-right: 20px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #764ba2;
+        }
+
+        /* Статистика */
+        .statistics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .stat-card p {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        /* Фильтры */
+        .filters {
+            padding: 30px;
+            background: white;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .filters h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        /* Таблица логов */
+        .logs-section {
+            padding: 30px;
+        }
+
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .logs-header h2 {
+            color: #333;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        thead {
+            background: #f8f9fa;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            color: #667eea;
+            font-weight: 600;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e9ecef;
+            color: #333;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .rating-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        .rating-helpful {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .rating-not-helpful {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .rating-none {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        .similarity-score {
+            font-weight: 600;
+        }
+
+        .similarity-high {
+            color: #28a745;
+        }
+
+        .similarity-medium {
+            color: #ffc107;
+        }
+
+        .similarity-low {
+            color: #dc3545;
+        }
+
+        /* Пагинация */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 30px;
+            padding: 20px;
+        }
+
+        .pagination button {
+            padding: 8px 15px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination .page-info {
+            color: #666;
+            font-weight: 500;
+        }
+
+        /* Загрузка */
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+        }
+
+        .truncate {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .top-items {
+            margin-top: 20px;
+        }
+
+        .top-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .top-item strong {
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Логи взаимодействий</h1>
+            <p>Анализ запросов пользователей и эффективности ответов</p>
+        </div>
+
+        <div class="nav-links">
+            <a href="/">← Управление FAQ</a>
+            <a href="/settings">⚙️ Настройки</a>
+        </div>
+
+        <!-- Статистика -->
+        <div class="statistics">
+            <div class="stat-card">
+                <h3 id="stat-total-queries">0</h3>
+                <p>Всего запросов</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="stat-avg-similarity">0%</h3>
+                <p>Средняя схожесть</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="stat-helpful-percentage">0%</h3>
+                <p>Полезных ответов</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="stat-helpful-count">0</h3>
+                <p>👍 Положительных</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="stat-not-helpful-count">0</h3>
+                <p>👎 Отрицательных</p>
+            </div>
+        </div>
+
+        <!-- Фильтры -->
+        <div class="filters">
+            <h2>🔍 Фильтры</h2>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="filter-search">Поиск по тексту</label>
+                    <input type="text" id="filter-search" placeholder="Введите текст запроса" oninput="handleSearchInput()">
+                </div>
+                <div class="filter-group">
+                    <label for="filter-rating">Оценка</label>
+                    <select id="filter-rating" onchange="applyFilters()">
+                        <option value="">Все</option>
+                        <option value="helpful">👍 Полезно</option>
+                        <option value="not_helpful">👎 Не помогло</option>
+                        <option value="no_rating">Без оценки</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filter-date-from">Дата от</label>
+                    <input type="date" id="filter-date-from" onchange="applyFilters()">
+                </div>
+                <div class="filter-group">
+                    <label for="filter-date-to">Дата до</label>
+                    <input type="date" id="filter-date-to" onchange="applyFilters()">
+                </div>
+            </div>
+            <div class="filter-actions">
+                <button class="btn btn-secondary" onclick="resetFilters()">Сбросить фильтры</button>
+                <button class="btn btn-success" onclick="exportLogs()">📥 Экспорт в CSV</button>
+            </div>
+        </div>
+
+        <!-- Таблица логов -->
+        <div class="logs-section">
+            <div class="logs-header">
+                <h2>📋 История запросов</h2>
+            </div>
+
+            <div id="loading" class="loading" style="display: none;">
+                Загрузка данных...
+            </div>
+
+            <div id="no-data" class="no-data" style="display: none;">
+                Нет данных для отображения
+            </div>
+
+            <div class="table-container" id="table-container">
+                <table id="logs-table">
+                    <thead>
+                        <tr>
+                            <th>Дата/Время</th>
+                            <th>Пользователь</th>
+                            <th>Запрос</th>
+                            <th>FAQ</th>
+                            <th>Схожесть</th>
+                            <th>Оценка</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody">
+                        <!-- Данные будут загружены через JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Пагинация -->
+            <div class="pagination" id="pagination">
+                <button onclick="changePage(currentPage - 1)" id="prev-btn">← Предыдущая</button>
+                <span class="page-info" id="page-info">Страница 1 из 1</span>
+                <button onclick="changePage(currentPage + 1)" id="next-btn">Следующая →</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentFilters = {};
+
+        // Загрузка данных при загрузке страницы
+        window.addEventListener('DOMContentLoaded', () => {
+            loadStatistics();
+            loadLogs();
+        });
+
+        // Загрузка статистики
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/logs/statistics');
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.statistics;
+                    document.getElementById('stat-total-queries').textContent = stats.total_queries || 0;
+                    document.getElementById('stat-avg-similarity').textContent = (stats.avg_similarity || 0) + '%';
+                    document.getElementById('stat-helpful-percentage').textContent = (stats.helpful_percentage || 0) + '%';
+                    document.getElementById('stat-helpful-count').textContent = stats.helpful_count || 0;
+                    document.getElementById('stat-not-helpful-count').textContent = stats.not_helpful_count || 0;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+            }
+        }
+
+        // Загрузка логов
+        async function loadLogs(page = 1) {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('table-container').style.display = 'none';
+            document.getElementById('no-data').style.display = 'none';
+
+            try {
+                const params = new URLSearchParams({
+                    page: page,
+                    per_page: 50,
+                    ...currentFilters
+                });
+
+                const response = await fetch(`/api/logs/list?${params}`);
+                const data = await response.json();
+
+                document.getElementById('loading').style.display = 'none';
+
+                if (data.success && data.logs.length > 0) {
+                    displayLogs(data.logs);
+                    updatePagination(data.pagination);
+                    document.getElementById('table-container').style.display = 'block';
+                } else {
+                    document.getElementById('no-data').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки логов:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('no-data').style.display = 'block';
+            }
+        }
+
+        // Отображение логов в таблице
+        function displayLogs(logs) {
+            const tbody = document.getElementById('logs-tbody');
+            tbody.innerHTML = '';
+
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+
+                // Форматирование даты
+                const date = new Date(log.query_timestamp);
+                const dateStr = date.toLocaleString('ru-RU');
+
+                // Оценка схожести
+                const score = log.similarity_score || 0;
+                const scoreClass = score >= 70 ? 'similarity-high' : score >= 50 ? 'similarity-medium' : 'similarity-low';
+
+                // Рейтинг
+                let ratingHTML = '<span class="rating-badge rating-none">-</span>';
+                if (log.rating === 'helpful') {
+                    ratingHTML = '<span class="rating-badge rating-helpful">👍 Полезно</span>';
+                } else if (log.rating === 'not_helpful') {
+                    ratingHTML = '<span class="rating-badge rating-not-helpful">👎 Не помогло</span>';
+                }
+
+                row.innerHTML = `
+                    <td>${dateStr}</td>
+                    <td>
+                        <div>${log.username || 'N/A'}</div>
+                        <small style="color: #999;">ID: ${log.user_id}</small>
+                    </td>
+                    <td>
+                        <div class="truncate" title="${log.query_text}">${log.query_text}</div>
+                    </td>
+                    <td>
+                        ${log.faq_question ?
+                            `<div class="truncate" title="${log.faq_question}">${log.faq_question}</div>
+                             <small style="color: #999;">${log.category || ''}</small>`
+                            : '<span style="color: #999;">-</span>'}
+                    </td>
+                    <td>
+                        <span class="similarity-score ${scoreClass}">${score.toFixed(1)}%</span>
+                    </td>
+                    <td>${ratingHTML}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        // Обновление пагинации
+        function updatePagination(pagination) {
+            currentPage = pagination.page;
+            totalPages = pagination.total_pages;
+
+            document.getElementById('page-info').textContent =
+                `Страница ${currentPage} из ${totalPages} (всего: ${pagination.total})`;
+
+            document.getElementById('prev-btn').disabled = currentPage <= 1;
+            document.getElementById('next-btn').disabled = currentPage >= totalPages;
+        }
+
+        // Смена страницы
+        function changePage(page) {
+            if (page >= 1 && page <= totalPages) {
+                loadLogs(page);
+            }
+        }
+
+        // Debounce функция для задержки вызова
+        let searchDebounceTimer;
+        function debounce(func, delay) {
+            return function() {
+                clearTimeout(searchDebounceTimer);
+                searchDebounceTimer = setTimeout(func, delay);
+            };
+        }
+
+        // Обработчик ввода в поле поиска с debounce
+        const handleSearchInput = debounce(() => {
+            applyFilters();
+        }, 500); // Задержка 500ms
+
+        // Применение фильтров
+        function applyFilters() {
+            currentFilters = {};
+
+            const search = document.getElementById('filter-search').value.trim();
+            if (search) currentFilters.search = search;
+
+            const rating = document.getElementById('filter-rating').value;
+            if (rating) currentFilters.rating = rating;
+
+            const dateFrom = document.getElementById('filter-date-from').value;
+            if (dateFrom) currentFilters.date_from = dateFrom;
+
+            const dateTo = document.getElementById('filter-date-to').value;
+            if (dateTo) currentFilters.date_to = dateTo;
+
+            loadLogs(1);
+            loadStatistics(); // Обновляем статистику
+        }
+
+        // Сброс фильтров
+        function resetFilters() {
+            document.getElementById('filter-search').value = '';
+            document.getElementById('filter-rating').value = '';
+            document.getElementById('filter-date-from').value = '';
+            document.getElementById('filter-date-to').value = '';
+            currentFilters = {};
+            loadLogs(1);
+            loadStatistics();
+        }
+
+        // Экспорт в CSV
+        function exportLogs() {
+            const params = new URLSearchParams(currentFilters);
+            window.location.href = `/api/logs/export?${params}`;
+        }
+    </script>
+</body>
+</html>

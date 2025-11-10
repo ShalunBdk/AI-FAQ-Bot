@@ -434,6 +434,168 @@ def reset_settings():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+# ========== ЛОГИРОВАНИЕ ==========
+
+@app.route('/logs')
+def logs_page():
+    """Страница просмотра логов"""
+    categories = database.get_all_categories()
+    return render_template('logs.html', categories=categories)
+
+
+@app.route('/api/logs/list', methods=['GET'])
+def get_logs():
+    """
+    Получить список логов с фильтрацией и пагинацией
+    Параметры:
+    - page: номер страницы (по умолчанию 1)
+    - per_page: количество записей на странице (по умолчанию 50)
+    - user_id: фильтр по ID пользователя
+    - faq_id: фильтр по ID FAQ
+    - rating: фильтр по оценке (helpful, not_helpful, no_rating)
+    - date_from: начальная дата (ISO format)
+    - date_to: конечная дата (ISO format)
+    - search: поиск по тексту запроса
+    """
+    try:
+        # Параметры пагинации
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 50))
+        offset = (page - 1) * per_page
+
+        # Параметры фильтрации
+        user_id = request.args.get('user_id')
+        if user_id:
+            user_id = int(user_id)
+
+        faq_id = request.args.get('faq_id')
+        rating = request.args.get('rating')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        search_text = request.args.get('search')
+
+        # Получаем логи
+        logs, total = database.get_logs(
+            limit=per_page,
+            offset=offset,
+            user_id=user_id,
+            faq_id=faq_id,
+            rating_filter=rating,
+            date_from=date_from,
+            date_to=date_to,
+            search_text=search_text
+        )
+
+        # Вычисляем метаданные пагинации
+        total_pages = (total + per_page - 1) // per_page
+
+        return jsonify({
+            "success": True,
+            "logs": logs,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total,
+                "total_pages": total_pages
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении логов: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/logs/statistics', methods=['GET'])
+def get_logs_statistics():
+    """Получить статистику по логам"""
+    try:
+        stats = database.get_statistics()
+        return jsonify({
+            "success": True,
+            "statistics": stats
+        })
+    except Exception as e:
+        logger.error(f"Ошибка при получении статистики: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/logs/export', methods=['GET'])
+def export_logs():
+    """
+    Экспорт логов в CSV
+    Параметры: такие же как в /api/logs/list
+    """
+    try:
+        import csv
+        from io import StringIO
+        from flask import make_response
+
+        # Параметры фильтрации (те же что и для get_logs)
+        user_id = request.args.get('user_id')
+        if user_id:
+            user_id = int(user_id)
+
+        faq_id = request.args.get('faq_id')
+        rating = request.args.get('rating')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        search_text = request.args.get('search')
+
+        # Получаем все логи (без пагинации)
+        logs, total = database.get_logs(
+            limit=10000,  # Максимум для экспорта
+            offset=0,
+            user_id=user_id,
+            faq_id=faq_id,
+            rating_filter=rating,
+            date_from=date_from,
+            date_to=date_to,
+            search_text=search_text
+        )
+
+        # Создаем CSV
+        si = StringIO()
+        writer = csv.writer(si, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        # Заголовки
+        writer.writerow([
+            'Дата/Время запроса',
+            'ID пользователя',
+            'Имя пользователя',
+            'Текст запроса',
+            'Категория FAQ',
+            'Вопрос FAQ',
+            'Оценка схожести (%)',
+            'Рейтинг',
+            'Дата/Время рейтинга'
+        ])
+
+        # Данные
+        for log in logs:
+            writer.writerow([
+                log.get('query_timestamp', ''),
+                log.get('user_id', ''),
+                log.get('username', ''),
+                log.get('query_text', ''),
+                log.get('category', ''),
+                log.get('faq_question', ''),
+                round(log.get('similarity_score', 0), 1) if log.get('similarity_score') else '',
+                log.get('rating', ''),
+                log.get('rating_timestamp', '')
+            ])
+
+        # Формируем ответ
+        output = make_response(si.getvalue())
+        output.headers["Content-Disposition"] = "attachment; filename=logs_export.csv"
+        output.headers["Content-type"] = "text/csv; charset=utf-8-sig"  # utf-8-sig для Excel
+
+        return output
+
+    except Exception as e:
+        logger.error(f"Ошибка при экспорте логов: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 # ========== MAIN ==========
 
 if __name__ == '__main__':

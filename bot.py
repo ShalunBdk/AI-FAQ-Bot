@@ -192,16 +192,45 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Запрос от {user.first_name} ({user.id}): {query}")
     await update.message.reply_text("🔍 Ищу ответ...")
 
+    # Логирование запроса
+    query_log_id = database.add_query_log(
+        user_id=user.id,
+        username=user.username or user.first_name,
+        query_text=query
+    )
+
     try:
         best_meta, score, raw_results = find_best_match(query, n_results=3)
 
         if not best_meta:
+            # Логируем отсутствие ответа
+            if query_log_id:
+                database.add_answer_log(
+                    query_log_id=query_log_id,
+                    faq_id=None,
+                    similarity_score=0.0,
+                    answer_shown="Ответ не найден"
+                )
+
             await update.message.reply_text(
                 "😔 К сожалению, я не нашёл ответа на ваш вопрос.\n\n"
                 "Попробуйте переформулировать или выберите категорию:",
                 reply_markup=get_categories_keyboard()
             )
             return
+
+        # Получаем ID FAQ из результатов
+        faq_id = raw_results["ids"][0][0] if raw_results and "ids" in raw_results and raw_results["ids"] else None
+
+        # Логируем показанный ответ
+        answer_log_id = None
+        if query_log_id:
+            answer_log_id = database.add_answer_log(
+                query_log_id=query_log_id,
+                faq_id=faq_id,
+                similarity_score=score,
+                answer_shown=best_meta['answer']
+            )
 
         if score < 50.0:
             # Показываем лучший результат даже если совпадение низкое
@@ -216,8 +245,8 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
             no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
             keyboard.append([
-                InlineKeyboardButton(yes_text, callback_data="helpful_yes"),
-                InlineKeyboardButton(no_text, callback_data="helpful_no")
+                InlineKeyboardButton(yes_text, callback_data=f"helpful_yes_{answer_log_id or 0}"),
+                InlineKeyboardButton(no_text, callback_data=f"helpful_no_{answer_log_id or 0}")
             ])
 
             # Похожие вопросы
@@ -248,8 +277,8 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
         yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
         no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
         keyboard.append([
-            InlineKeyboardButton(yes_text, callback_data="helpful_yes"),
-            InlineKeyboardButton(no_text, callback_data="helpful_no")
+            InlineKeyboardButton(yes_text, callback_data=f"helpful_yes_{answer_log_id or 0}"),
+            InlineKeyboardButton(no_text, callback_data=f"helpful_no_{answer_log_id or 0}")
         ])
 
         # Добавляем похожие вопросы если есть
@@ -294,11 +323,28 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("show_"):
         faq_id = data.replace("show_", "")
+        user = query.from_user
         try:
             result = collection.get(ids=[faq_id], include=["metadatas", "documents"])
             if result and result.get("metadatas"):
                 metadata = result["metadatas"][0]
                 response = f"<b>{metadata['question']}</b>\n\n{metadata['answer']}"
+
+                # Логируем просмотр FAQ через кнопку
+                query_log_id = database.add_query_log(
+                    user_id=user.id,
+                    username=user.username or user.first_name,
+                    query_text=f"[Просмотр FAQ] {metadata['question']}"
+                )
+
+                answer_log_id = None
+                if query_log_id:
+                    answer_log_id = database.add_answer_log(
+                        query_log_id=query_log_id,
+                        faq_id=faq_id,
+                        similarity_score=100.0,  # Прямой просмотр = 100%
+                        answer_shown=metadata['answer']
+                    )
 
                 # Формируем клавиатуру с кнопками обратной связи и навигацией
                 keyboard = []
@@ -307,8 +353,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
                 no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
                 keyboard.append([
-                    InlineKeyboardButton(yes_text, callback_data="helpful_yes"),
-                    InlineKeyboardButton(no_text, callback_data="helpful_no")
+                    InlineKeyboardButton(yes_text, callback_data=f"helpful_yes_{answer_log_id or 0}"),
+                    InlineKeyboardButton(no_text, callback_data=f"helpful_no_{answer_log_id or 0}")
                 ])
 
                 # Кнопка назад к категориям
@@ -324,7 +370,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "back_to_cats":
         await query.edit_message_text("📚 <b>Выберите категорию:</b>", reply_markup=get_categories_keyboard(), parse_mode='HTML')
 
-    elif data == "helpful_yes":
+    elif data.startswith("helpful_yes_"):
+        answer_log_id = int(data.replace("helpful_yes_", ""))
+        user = query.from_user
+
+        # Логируем положительную оценку
+        if answer_log_id > 0:
+            database.add_rating_log(
+                answer_log_id=answer_log_id,
+                user_id=user.id,
+                rating="helpful"
+            )
+
         # Удаляем кнопки из исходного сообщения
         try:
             await query.edit_message_reply_markup(reply_markup=None)
@@ -335,7 +392,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response_yes = bot_settings_cache.get("feedback_response_yes", database.DEFAULT_BOT_SETTINGS["feedback_response_yes"])
         await query.message.reply_text(response_yes, parse_mode='HTML')
 
-    elif data == "helpful_no":
+    elif data.startswith("helpful_no_"):
+        answer_log_id = int(data.replace("helpful_no_", ""))
+        user = query.from_user
+
+        # Логируем отрицательную оценку
+        if answer_log_id > 0:
+            database.add_rating_log(
+                answer_log_id=answer_log_id,
+                user_id=user.id,
+                rating="not_helpful"
+            )
+
         # Удаляем кнопки из исходного сообщения
         try:
             await query.edit_message_reply_markup(reply_markup=None)

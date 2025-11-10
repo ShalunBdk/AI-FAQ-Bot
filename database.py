@@ -340,3 +340,298 @@ def reset_bot_settings() -> bool:
     except Exception as e:
         print(f"Ошибка при сбросе настроек: {e}")
         return False
+
+
+# ========== ЛОГИРОВАНИЕ ВЗАИМОДЕЙСТВИЙ ==========
+
+def add_query_log(user_id: int, username: str, query_text: str) -> Optional[int]:
+    """
+    Логировать запрос пользователя
+
+    :param user_id: ID пользователя Telegram
+    :param username: Имя пользователя
+    :param query_text: Текст запроса
+    :return: ID созданного лога или None при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO query_logs (user_id, username, query_text) VALUES (?, ?, ?)",
+                (user_id, username, query_text)
+            )
+            return cursor.lastrowid
+    except Exception as e:
+        print(f"Ошибка при логировании запроса: {e}")
+        return None
+
+
+def add_answer_log(query_log_id: int, faq_id: Optional[str], similarity_score: float, answer_shown: str) -> Optional[int]:
+    """
+    Логировать показанный ответ
+
+    :param query_log_id: ID запроса из query_logs
+    :param faq_id: ID FAQ (может быть None если ответ не найден)
+    :param similarity_score: Оценка схожести (0-100)
+    :param answer_shown: Текст показанного ответа
+    :return: ID созданного лога или None при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO answer_logs (query_log_id, faq_id, similarity_score, answer_shown) VALUES (?, ?, ?, ?)",
+                (query_log_id, faq_id, similarity_score, answer_shown)
+            )
+            return cursor.lastrowid
+    except Exception as e:
+        print(f"Ошибка при логировании ответа: {e}")
+        return None
+
+
+def add_rating_log(answer_log_id: int, user_id: int, rating: str) -> bool:
+    """
+    Логировать оценку ответа пользователем
+
+    :param answer_log_id: ID ответа из answer_logs
+    :param user_id: ID пользователя
+    :param rating: Оценка ('helpful' или 'not_helpful')
+    :return: True если успешно, False при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO rating_logs (answer_log_id, user_id, rating) VALUES (?, ?, ?)",
+                (answer_log_id, user_id, rating)
+            )
+            return True
+    except Exception as e:
+        print(f"Ошибка при логировании оценки: {e}")
+        return False
+
+
+def get_logs(
+    limit: int = 50,
+    offset: int = 0,
+    user_id: Optional[int] = None,
+    faq_id: Optional[str] = None,
+    rating_filter: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    search_text: Optional[str] = None
+) -> tuple[List[Dict], int]:
+    """
+    Получить логи с фильтрацией и пагинацией
+
+    :param limit: Количество записей на странице
+    :param offset: Смещение для пагинации
+    :param user_id: Фильтр по ID пользователя
+    :param faq_id: Фильтр по ID FAQ
+    :param rating_filter: Фильтр по оценке ('helpful', 'not_helpful', 'no_rating')
+    :param date_from: Начальная дата (ISO format)
+    :param date_to: Конечная дата (ISO format)
+    :param search_text: Поиск по тексту запроса
+    :return: (список логов, общее количество записей)
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Базовый запрос с JOIN
+            query = """
+                SELECT
+                    ql.id as query_id,
+                    ql.user_id,
+                    ql.username,
+                    ql.query_text,
+                    ql.timestamp as query_timestamp,
+                    al.id as answer_id,
+                    al.faq_id,
+                    al.similarity_score,
+                    al.answer_shown,
+                    al.timestamp as answer_timestamp,
+                    rl.rating,
+                    rl.timestamp as rating_timestamp,
+                    f.category,
+                    f.question as faq_question
+                FROM query_logs ql
+                LEFT JOIN answer_logs al ON ql.id = al.query_log_id
+                LEFT JOIN rating_logs rl ON al.id = rl.answer_log_id
+                LEFT JOIN faq f ON al.faq_id = f.id
+                WHERE 1=1
+            """
+
+            params = []
+
+            # Фильтры
+            if user_id is not None:
+                query += " AND ql.user_id = ?"
+                params.append(user_id)
+
+            if faq_id is not None:
+                query += " AND al.faq_id = ?"
+                params.append(faq_id)
+
+            if rating_filter:
+                if rating_filter == 'no_rating':
+                    query += " AND rl.rating IS NULL"
+                else:
+                    query += " AND rl.rating = ?"
+                    params.append(rating_filter)
+
+            if date_from:
+                query += " AND ql.timestamp >= ?"
+                params.append(date_from)
+
+            if date_to:
+                query += " AND ql.timestamp <= ?"
+                params.append(date_to)
+
+            if search_text:
+                query += " AND ql.query_text LIKE ?"
+                params.append(f"%{search_text}%")
+
+            # Подсчет общего количества
+            count_query = f"SELECT COUNT(*) as total FROM ({query})"
+            cursor.execute(count_query, params)
+            total = cursor.fetchone()["total"]
+
+            # Сортировка и пагинация
+            query += " ORDER BY ql.timestamp DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            logs = []
+            for row in rows:
+                logs.append({
+                    "query_id": row["query_id"],
+                    "user_id": row["user_id"],
+                    "username": row["username"],
+                    "query_text": row["query_text"],
+                    "query_timestamp": row["query_timestamp"],
+                    "answer_id": row["answer_id"],
+                    "faq_id": row["faq_id"],
+                    "similarity_score": row["similarity_score"],
+                    "answer_shown": row["answer_shown"],
+                    "answer_timestamp": row["answer_timestamp"],
+                    "rating": row["rating"],
+                    "rating_timestamp": row["rating_timestamp"],
+                    "category": row["category"],
+                    "faq_question": row["faq_question"]
+                })
+
+            return logs, total
+    except Exception as e:
+        print(f"Ошибка при получении логов: {e}")
+        return [], 0
+
+
+def get_statistics() -> Dict:
+    """
+    Получить статистику по логам
+
+    :return: Словарь со статистикой
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            stats = {}
+
+            # Всего запросов
+            cursor.execute("SELECT COUNT(*) as total FROM query_logs")
+            stats["total_queries"] = cursor.fetchone()["total"]
+
+            # Всего ответов
+            cursor.execute("SELECT COUNT(*) as total FROM answer_logs")
+            stats["total_answers"] = cursor.fetchone()["total"]
+
+            # Средняя оценка схожести
+            cursor.execute("SELECT AVG(similarity_score) as avg_score FROM answer_logs WHERE similarity_score IS NOT NULL")
+            result = cursor.fetchone()
+            stats["avg_similarity"] = round(result["avg_score"], 2) if result["avg_score"] else 0
+
+            # Оценки
+            cursor.execute("SELECT COUNT(*) as total FROM rating_logs WHERE rating = 'helpful'")
+            stats["helpful_count"] = cursor.fetchone()["total"]
+
+            cursor.execute("SELECT COUNT(*) as total FROM rating_logs WHERE rating = 'not_helpful'")
+            stats["not_helpful_count"] = cursor.fetchone()["total"]
+
+            # Процент полезных ответов
+            total_ratings = stats["helpful_count"] + stats["not_helpful_count"]
+            if total_ratings > 0:
+                stats["helpful_percentage"] = round((stats["helpful_count"] / total_ratings) * 100, 2)
+            else:
+                stats["helpful_percentage"] = 0
+
+            # Топ-3 самых частых вопроса
+            cursor.execute("""
+                SELECT query_text, COUNT(*) as count
+                FROM query_logs
+                GROUP BY query_text
+                ORDER BY count DESC
+                LIMIT 3
+            """)
+            stats["top_queries"] = [
+                {"query": row["query_text"], "count": row["count"]}
+                for row in cursor.fetchall()
+            ]
+
+            # Топ-3 самых полезных FAQ (по количеству положительных оценок)
+            cursor.execute("""
+                SELECT
+                    f.id,
+                    f.question,
+                    f.category,
+                    COUNT(*) as helpful_count
+                FROM rating_logs rl
+                JOIN answer_logs al ON rl.answer_log_id = al.id
+                JOIN faq f ON al.faq_id = f.id
+                WHERE rl.rating = 'helpful'
+                GROUP BY f.id
+                ORDER BY helpful_count DESC
+                LIMIT 3
+            """)
+            stats["top_helpful_faqs"] = [
+                {
+                    "faq_id": row["id"],
+                    "question": row["question"],
+                    "category": row["category"],
+                    "helpful_count": row["helpful_count"]
+                }
+                for row in cursor.fetchall()
+            ]
+
+            # FAQ с низкими оценками (требуют улучшения)
+            cursor.execute("""
+                SELECT
+                    f.id,
+                    f.question,
+                    f.category,
+                    COUNT(*) as not_helpful_count
+                FROM rating_logs rl
+                JOIN answer_logs al ON rl.answer_log_id = al.id
+                JOIN faq f ON al.faq_id = f.id
+                WHERE rl.rating = 'not_helpful'
+                GROUP BY f.id
+                ORDER BY not_helpful_count DESC
+                LIMIT 3
+            """)
+            stats["need_improvement_faqs"] = [
+                {
+                    "faq_id": row["id"],
+                    "question": row["question"],
+                    "category": row["category"],
+                    "not_helpful_count": row["not_helpful_count"]
+                }
+                for row in cursor.fetchall()
+            ]
+
+            return stats
+    except Exception as e:
+        print(f"Ошибка при получении статистики: {e}")
+        return {}
