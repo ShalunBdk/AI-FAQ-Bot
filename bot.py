@@ -20,7 +20,7 @@ logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # ---------- КОНФИГ ----------
-TELEGRAM_TOKEN = "8147196319:AAENxB3l4N2J_1EQhs2OXTgdcCIyNTaEnFI"
+TELEGRAM_TOKEN = "8006988265:AAFNahJH7opZ7BBe8ysriod5iGyMkJ363gM"
 MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 RELOAD_SERVER_PORT = 5001
 
