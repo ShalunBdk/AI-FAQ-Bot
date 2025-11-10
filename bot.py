@@ -17,6 +17,8 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 # ---------- ЛОГИРОВАНИЕ ----------
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # ---------- КОНФИГ ----------
@@ -33,8 +35,22 @@ print("Модель загружена!")
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL_NAME)
 
-# Глобальная переменная для коллекции
+# Глобальные переменные
 collection = None
+bot_settings_cache = {}
+
+def reload_bot_settings():
+    """Перезагружает настройки бота из БД"""
+    global bot_settings_cache
+    try:
+        bot_settings_cache = database.get_bot_settings()
+        logger.info(f"✅ Настройки бота загружены: {len(bot_settings_cache)} параметров")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка при загрузке настроек бота: {e}")
+        # Используем дефолтные настройки в случае ошибки
+        bot_settings_cache = database.DEFAULT_BOT_SETTINGS.copy()
+        return False
 
 def reload_collection():
     """Перезагружает коллекцию ChromaDB"""
@@ -57,8 +73,9 @@ def reload_collection():
             logger.error(f"❌ Не удалось создать коллекцию: {e2}")
             return False
 
-# Инициализация коллекции при старте
+# Инициализация коллекции и настроек при старте
 reload_collection()
+reload_bot_settings()
 
 # ---------- FLASK СЕРВЕР ДЛЯ ПРИЁМА КОМАНД ----------
 flask_app = Flask(__name__)
@@ -72,6 +89,16 @@ def handle_reload():
         return jsonify({"status": "ok", "message": "Коллекция перезагружена"}), 200
     else:
         return jsonify({"status": "error", "message": "Ошибка перезагрузки"}), 500
+
+@flask_app.route('/reload-settings', methods=['POST'])
+def handle_reload_settings():
+    """Эндпоинт для перезагрузки настроек бота"""
+    logger.info("📡 Получен запрос на перезагрузку настроек бота")
+    success = reload_bot_settings()
+    if success:
+        return jsonify({"status": "ok", "message": "Настройки бота перезагружены"}), 200
+    else:
+        return jsonify({"status": "error", "message": "Ошибка перезагрузки настроек"}), 500
 
 @flask_app.route('/health', methods=['GET'])
 def health_check():
@@ -152,20 +179,11 @@ def find_best_match(query_text: str, n_results: int = 3):
 
 # ---------- БОТ: хендлеры ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = """👋 **Добро пожаловать в корпоративный бот-помощник!**
-    
-Я помогу найти ответы на вопросы о работе в компании.
+    # Получаем текст приветствия из настроек
+    welcome_text = bot_settings_cache.get("start_message", database.DEFAULT_BOT_SETTINGS["start_message"])
 
-💡 **Просто напишите свой вопрос**, например:
-• "Можно ли в шортах на работу?"
-• "Мне меньше денег пришло"
-• "Где взять спецовку?"
-• "Как отправить посылку?"
-
-📚 Или выберите категорию:"""
-    
     reply_markup = get_categories_keyboard()
-    
+
     await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -254,9 +272,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📚 **Выберите категорию:**", reply_markup=get_categories_keyboard(), parse_mode='Markdown')
 
     elif data == "helpful_yes":
-        await query.edit_message_text(f"{query.message.text}\n\n✅ **Спасибо за отзыв!**")
+        # Получаем ответ из настроек
+        response_yes = bot_settings_cache.get("feedback_response_yes", database.DEFAULT_BOT_SETTINGS["feedback_response_yes"])
+        await query.edit_message_text(f"{query.message.text}\n\n{response_yes}")
     elif data == "helpful_no":
-        await query.edit_message_text(f"{query.message.text}\n\n😔 Извините, что не помог.\n\n📞 Обратитесь в HR: доб. 101")
+        # Получаем ответ из настроек
+        response_no = bot_settings_cache.get("feedback_response_no", database.DEFAULT_BOT_SETTINGS["feedback_response_no"])
+        await query.edit_message_text(f"{query.message.text}\n\n{response_no}")
 
 # ---------- ВСПОМОГАТЕЛЬНЫЕ ----------
 def get_categories_keyboard():
@@ -275,9 +297,13 @@ def get_categories_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_feedback_keyboard():
+    # Получаем тексты кнопок из настроек
+    yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
+    no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
+
     keyboard = [
-        [InlineKeyboardButton("👍 Полезно", callback_data="helpful_yes"),
-         InlineKeyboardButton("👎 Не помогло", callback_data="helpful_no")]
+        [InlineKeyboardButton(yes_text, callback_data="helpful_yes"),
+         InlineKeyboardButton(no_text, callback_data="helpful_no")]
     ]
     return InlineKeyboardMarkup(keyboard)
 

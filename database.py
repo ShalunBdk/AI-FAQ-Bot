@@ -60,7 +60,28 @@ def init_database():
             )
         """)
 
+        # Таблица настроек бота
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bot_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Триггер для автообновления updated_at настроек
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS update_bot_settings_timestamp
+            AFTER UPDATE ON bot_settings
+            BEGIN
+                UPDATE bot_settings SET updated_at = CURRENT_TIMESTAMP WHERE key = NEW.key;
+            END
+        """)
+
         print("OK: База данных инициализирована")
+
+    # Инициализируем настройки бота
+    init_bot_settings()
 
 
 def get_all_faqs() -> List[Dict]:
@@ -193,3 +214,129 @@ def migrate_from_demo_faq(demo_faq_data: List[Dict]):
         ):
             count += 1
     print(f"OK: Мигрировано {count} записей из demo_faq")
+
+
+# ========== НАСТРОЙКИ БОТА ==========
+
+DEFAULT_BOT_SETTINGS = {
+    "start_message": """👋 **Добро пожаловать в корпоративный бот-помощник!**
+
+Я помогу найти ответы на вопросы о работе в компании.
+
+💡 **Просто напишите свой вопрос**, например:
+• "Можно ли в шортах на работу?"
+• "Мне меньше денег пришло"
+• "Где взять спецовку?"
+• "Как отправить посылку?"
+
+📚 Или выберите категорию:""",
+    "feedback_button_yes": "👍 Полезно",
+    "feedback_button_no": "👎 Не помогло",
+    "feedback_response_yes": "✅ **Спасибо за отзыв!**",
+    "feedback_response_no": "😔 Извините, что не помог.\n\n📞 Обратитесь в HR: доб. 101"
+}
+
+
+def init_bot_settings():
+    """Инициализация настроек бота значениями по умолчанию"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            for key, value in DEFAULT_BOT_SETTINGS.items():
+                # Вставляем только если настройки еще нет
+                cursor.execute(
+                    "INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)",
+                    (key, value)
+                )
+        print("OK: Настройки бота инициализированы")
+        return True
+    except Exception as e:
+        print(f"Ошибка при инициализации настроек: {e}")
+        return False
+
+
+def get_bot_settings() -> Dict[str, str]:
+    """Получить все настройки бота"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM bot_settings")
+        rows = cursor.fetchall()
+
+        # Если настроек нет, инициализируем и возвращаем дефолтные
+        if not rows:
+            init_bot_settings()
+            return DEFAULT_BOT_SETTINGS.copy()
+
+        settings = {}
+        for row in rows:
+            settings[row["key"]] = row["value"]
+
+        # Добавляем недостающие настройки из дефолтных
+        for key, value in DEFAULT_BOT_SETTINGS.items():
+            if key not in settings:
+                settings[key] = value
+
+        return settings
+
+
+def get_bot_setting(key: str) -> Optional[str]:
+    """Получить конкретную настройку бота"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+
+        if row:
+            return row["value"]
+
+        # Если настройка не найдена, возвращаем дефолтное значение
+        return DEFAULT_BOT_SETTINGS.get(key)
+
+
+def update_bot_setting(key: str, value: str) -> bool:
+    """Обновить настройку бота"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)",
+                (key, value)
+            )
+            return True
+    except Exception as e:
+        print(f"Ошибка при обновлении настройки {key}: {e}")
+        return False
+
+
+def update_bot_settings(settings: Dict[str, str]) -> bool:
+    """Обновить несколько настроек бота за раз"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            for key, value in settings.items():
+                cursor.execute(
+                    "INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)",
+                    (key, value)
+                )
+            return True
+    except Exception as e:
+        print(f"Ошибка при обновлении настроек: {e}")
+        return False
+
+
+def reset_bot_settings() -> bool:
+    """Сбросить все настройки бота к значениям по умолчанию"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM bot_settings")
+            for key, value in DEFAULT_BOT_SETTINGS.items():
+                cursor.execute(
+                    "INSERT INTO bot_settings (key, value) VALUES (?, ?)",
+                    (key, value)
+                )
+        print("OK: Настройки бота сброшены к значениям по умолчанию")
+        return True
+    except Exception as e:
+        print(f"Ошибка при сбросе настроек: {e}")
+        return False

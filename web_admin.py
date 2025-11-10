@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация
 MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
-BOT_RELOAD_URL = "http://127.0.0.1:5001/reload"  # Эндпоинт бота для перезагрузки
+BOT_RELOAD_URL = "http://127.0.0.1:5001/reload"  # Эндпоинт бота для перезагрузки коллекции
+BOT_RELOAD_SETTINGS_URL = "http://127.0.0.1:5001/reload-settings"  # Эндпоинт бота для перезагрузки настроек
 
 # Инициализация ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -93,7 +94,23 @@ def notify_bot_reload():
     try:
         response = requests.post(BOT_RELOAD_URL, timeout=2)
         if response.status_code == 200:
-            logger.info("✅ Бот уведомлен о перезагрузке")
+            logger.info("✅ Бот уведомлен о перезагрузке коллекции")
+        else:
+            logger.warning(f"⚠️ Бот ответил с кодом {response.status_code}")
+    except requests.exceptions.ConnectionError:
+        logger.warning("⚠️ Не удалось связаться с ботом (возможно, он не запущен)")
+    except Exception as e:
+        logger.error(f"❌ Ошибка при уведомлении бота: {e}")
+
+
+def notify_bot_reload_settings():
+    """
+    Отправляет запрос боту на перезагрузку настроек
+    """
+    try:
+        response = requests.post(BOT_RELOAD_SETTINGS_URL, timeout=2)
+        if response.status_code == 200:
+            logger.info("✅ Бот уведомлен о перезагрузке настроек")
         else:
             logger.warning(f"⚠️ Бот ответил с кодом {response.status_code}")
     except requests.exceptions.ConnectionError:
@@ -335,6 +352,85 @@ def semantic_search():
         
     except Exception as e:
         logger.error(f"Ошибка при семантическом поиске: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ========== НАСТРОЙКИ БОТА ==========
+
+@app.route('/settings')
+def settings_page():
+    """Страница настроек бота"""
+    return render_template('settings.html')
+
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """Получить текущие настройки бота"""
+    try:
+        settings = database.get_bot_settings()
+        return jsonify({
+            "success": True,
+            "settings": settings
+        })
+    except Exception as e:
+        logger.error(f"Ошибка при получении настроек: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/settings', methods=['POST'])
+def save_settings():
+    """Сохранить настройки бота"""
+    try:
+        data = request.json
+        settings = data.get('settings', {})
+
+        if not settings:
+            return jsonify({"success": False, "message": "Настройки не переданы"}), 400
+
+        # Сохраняем настройки в БД
+        success = database.update_bot_settings(settings)
+
+        if success:
+            # Уведомляем бота о перезагрузке настроек
+            notify_bot_reload_settings()
+
+            return jsonify({
+                "success": True,
+                "message": "Настройки сохранены"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Ошибка при сохранении настроек"
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении настроек: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/settings/reset', methods=['POST'])
+def reset_settings():
+    """Сбросить настройки бота к значениям по умолчанию"""
+    try:
+        success = database.reset_bot_settings()
+
+        if success:
+            # Уведомляем бота о перезагрузке настроек
+            notify_bot_reload_settings()
+
+            return jsonify({
+                "success": True,
+                "message": "Настройки сброшены к значениям по умолчанию"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Ошибка при сбросе настроек"
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Ошибка при сбросе настроек: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 
