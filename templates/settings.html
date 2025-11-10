@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Настройки бота - FAQ Bot</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Quill WYSIWYG Editor -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -147,6 +151,106 @@
             min-height: 200px;
             resize: vertical;
             flex: 1;
+        }
+
+        /* Скрываем textarea для WYSIWYG редактора */
+        .setting-group textarea.wysiwyg-source {
+            display: none;
+        }
+
+        /* Стили для Quill редактора */
+        .wysiwyg-editor {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            min-height: 200px;
+        }
+
+        /* Меньшая высота для коротких сообщений */
+        #feedback_response_yes_editor,
+        #feedback_response_no_editor {
+            min-height: 120px;
+        }
+
+        #feedback_response_yes_editor .ql-container,
+        #feedback_response_no_editor .ql-container {
+            min-height: 80px;
+        }
+
+        #feedback_response_yes_editor .ql-editor,
+        #feedback_response_no_editor .ql-editor {
+            min-height: 80px;
+        }
+
+        .wysiwyg-editor .ql-toolbar {
+            border: none;
+            border-bottom: 2px solid #dee2e6;
+            border-radius: 8px 8px 0 0;
+            background: #f8f9fa;
+            padding: 8px;
+        }
+
+        .wysiwyg-editor .ql-toolbar button {
+            margin: 0 2px;
+        }
+
+        .wysiwyg-editor .ql-toolbar button:hover {
+            color: #667eea;
+        }
+
+        .wysiwyg-editor .ql-toolbar button.ql-active {
+            color: #667eea;
+        }
+
+        .wysiwyg-editor .ql-container {
+            border: none;
+            font-size: 16px;
+            font-family: inherit;
+            min-height: 180px;
+        }
+
+        .wysiwyg-editor .ql-editor {
+            min-height: 180px;
+            padding: 12px;
+            line-height: 1.6;
+        }
+
+        .wysiwyg-editor .ql-editor.ql-blank::before {
+            color: #adb5bd;
+            font-style: normal;
+        }
+
+        .wysiwyg-editor:focus-within {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        /* Стили для форматированного текста в редакторе */
+        .wysiwyg-editor .ql-editor strong,
+        .wysiwyg-editor .ql-editor b {
+            font-weight: bold;
+        }
+
+        .wysiwyg-editor .ql-editor em,
+        .wysiwyg-editor .ql-editor i {
+            font-style: italic;
+        }
+
+        .wysiwyg-editor .ql-editor u {
+            text-decoration: underline;
+        }
+
+        .wysiwyg-editor .ql-editor s {
+            text-decoration: line-through;
+        }
+
+        .wysiwyg-editor .ql-syntax {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            display: block;
+            margin: 8px 0;
         }
 
         .setting-group input:focus,
@@ -399,12 +503,13 @@
                     <h3>👋 Приветственное сообщение (/start)</h3>
                     <div class="hint">
                         Это сообщение видят пользователи при нажатии на команду /start или /help.
-                        Поддерживается Markdown форматирование (**жирный**, *курсив*). Нажмите Enter для переноса строки.
+                        Используйте панель инструментов для форматирования текста (жирный, курсив, подчеркивание, зачеркивание, код).
                     </div>
                     <div class="editor-preview-container">
                         <div class="editor-section">
                             <label for="start_message">Текст приветствия:</label>
-                            <textarea id="start_message" name="start_message" required></textarea>
+                            <textarea id="start_message" name="start_message" class="wysiwyg-source" required></textarea>
+                            <div id="start_message_editor" class="wysiwyg-editor"></div>
                         </div>
                         <div class="preview-section">
                             <div class="preview-title">Предпросмотр в Telegram:</div>
@@ -461,12 +566,14 @@
                 <div class="setting-group">
                     <h3>✅ Ответ на положительный отзыв</h3>
                     <div class="hint">
-                        Сообщение, которое видит пользователь после нажатия на кнопку "Полезно". Нажмите Enter для переноса строки.
+                        Сообщение, которое видит пользователь после нажатия на кнопку "Полезно".
+                        Используйте панель инструментов для форматирования текста.
                     </div>
                     <div class="editor-preview-container">
                         <div class="editor-section">
                             <label for="feedback_response_yes">Текст ответа:</label>
-                            <textarea id="feedback_response_yes" name="feedback_response_yes" required rows="3"></textarea>
+                            <textarea id="feedback_response_yes" name="feedback_response_yes" class="wysiwyg-source" required rows="3"></textarea>
+                            <div id="feedback_response_yes_editor" class="wysiwyg-editor"></div>
                         </div>
                         <div class="preview-section">
                             <div class="preview-title">Предпросмотр в Telegram:</div>
@@ -484,12 +591,13 @@
                     <h3>😔 Ответ на негативный отзыв</h3>
                     <div class="hint">
                         Сообщение, которое видит пользователь после нажатия на кнопку "Не помогло".
-                        Здесь можно указать контакты для дополнительной помощи. Нажмите Enter для переноса строки.
+                        Здесь можно указать контакты для дополнительной помощи. Используйте панель инструментов для форматирования текста.
                     </div>
                     <div class="editor-preview-container">
                         <div class="editor-section">
                             <label for="feedback_response_no">Текст ответа:</label>
-                            <textarea id="feedback_response_no" name="feedback_response_no" required rows="3"></textarea>
+                            <textarea id="feedback_response_no" name="feedback_response_no" class="wysiwyg-source" required rows="3"></textarea>
+                            <div id="feedback_response_no_editor" class="wysiwyg-editor"></div>
                         </div>
                         <div class="preview-section">
                             <div class="preview-title">Предпросмотр в Telegram:</div>
@@ -516,6 +624,78 @@
     </div>
 
     <script>
+        // WYSIWYG редакторы
+        const editors = {};
+
+        // Инициализация Quill редакторов
+        function initWysiwygEditors() {
+            // Если редакторы уже инициализированы, не создаваем заново
+            if (Object.keys(editors).length > 0) {
+                return;
+            }
+
+            const editorConfigs = [
+                { id: 'start_message', containerId: 'start_message_editor' },
+                { id: 'feedback_response_yes', containerId: 'feedback_response_yes_editor' },
+                { id: 'feedback_response_no', containerId: 'feedback_response_no_editor' }
+            ];
+
+            editorConfigs.forEach(config => {
+                const container = document.getElementById(config.containerId);
+                const textarea = document.getElementById(config.id);
+
+                // Настройка toolbar - только нужные кнопки для Telegram
+                const quill = new Quill(`#${config.containerId}`, {
+                    theme: 'snow',
+                    modules: {
+                        toolbar: [
+                            ['bold', 'italic', 'underline', 'strike'],
+                            ['code-block'],
+                            ['clean']
+                        ]
+                    },
+                    placeholder: 'Введите текст...'
+                });
+
+                // Сохраняем редактор
+                editors[config.id] = quill;
+
+                // Синхронизация: Quill -> textarea -> preview
+                quill.on('text-change', () => {
+                    let html = quill.root.innerHTML;
+
+                    // Конвертируем Quill HTML в Telegram HTML
+                    html = convertQuillToTelegramHtml(html);
+
+                    textarea.value = html;
+                    updatePreview(config.id, config.id + '_preview');
+                });
+            });
+        }
+
+        // Конвертация Quill HTML в Telegram HTML
+        function convertQuillToTelegramHtml(html) {
+            // Заменяем теги Quill на теги Telegram
+            html = html.replace(/<strong>/g, '<b>');
+            html = html.replace(/<\/strong>/g, '</b>');
+            html = html.replace(/<em>/g, '<i>');
+            html = html.replace(/<\/em>/g, '</i>');
+
+            // Конвертируем code-block в code
+            html = html.replace(/<pre class="ql-syntax"[^>]*>/g, '<code>');
+            html = html.replace(/<\/pre>/g, '</code>');
+
+            // Убираем пустые параграфы
+            html = html.replace(/<p><br><\/p>/g, '<br>');
+            html = html.replace(/<p>/g, '');
+            html = html.replace(/<\/p>/g, '<br>');
+
+            // Убираем лишние <br> в конце
+            html = html.replace(/(<br>)+$/g, '');
+
+            return html;
+        }
+
         // Загрузка настроек при старте
         async function loadSettings() {
             try {
@@ -525,10 +705,26 @@
                 if (data.success) {
                     const settings = data.settings;
 
-                    // Заполняем форму
-                    document.getElementById('start_message').value = settings.start_message || '';
+                    // Заполняем обычные текстовые поля (кнопки)
                     document.getElementById('feedback_button_yes').value = settings.feedback_button_yes || '';
                     document.getElementById('feedback_button_no').value = settings.feedback_button_no || '';
+
+                    // Инициализируем WYSIWYG редакторы
+                    initWysiwygEditors();
+
+                    // Загружаем HTML в Quill редакторы
+                    if (editors['start_message']) {
+                        editors['start_message'].root.innerHTML = settings.start_message || '';
+                    }
+                    if (editors['feedback_response_yes']) {
+                        editors['feedback_response_yes'].root.innerHTML = settings.feedback_response_yes || '';
+                    }
+                    if (editors['feedback_response_no']) {
+                        editors['feedback_response_no'].root.innerHTML = settings.feedback_response_no || '';
+                    }
+
+                    // Обновляем textarea из редакторов
+                    document.getElementById('start_message').value = settings.start_message || '';
                     document.getElementById('feedback_response_yes').value = settings.feedback_response_yes || '';
                     document.getElementById('feedback_response_no').value = settings.feedback_response_no || '';
 
@@ -558,20 +754,12 @@
                 return;
             }
 
-            // Конвертируем Markdown в HTML для предпросмотра
-            if (typeof marked !== 'undefined') {
-                // Telegram использует одиночные переносы строк как <br>
-                // Заменяем одиночные \n на двойные пробелы + \n для Markdown
-                // Но сохраняем двойные \n как есть (параграфы)
-                text = text.replace(/([^\n])\n([^\n])/g, '$1  \n$2');
+            // Telegram использует HTML для форматирования
+            // Заменяем переносы строк на <br>
+            text = text.replace(/\n/g, '<br>');
 
-                // Парсим Markdown
-                preview.innerHTML = marked.parse(text);
-            } else {
-                // Fallback если marked не загрузился
-                // Заменяем \n на <br>
-                preview.innerHTML = text.replace(/\n/g, '<br>');
-            }
+            // Отображаем HTML как есть (браузер обработает теги <b>, <i> и т.д.)
+            preview.innerHTML = text;
         }
 
         function updateAllPreviews() {
@@ -582,10 +770,9 @@
             updatePreview('feedback_response_no', 'feedback_response_no_preview');
         }
 
-        // Добавляем обработчики для обновления превью в реальном времени
+        // Добавляем обработчики для обычных input полей (кнопки)
         document.addEventListener('DOMContentLoaded', () => {
-            const inputs = ['start_message', 'feedback_button_yes', 'feedback_button_no',
-                          'feedback_response_yes', 'feedback_response_no'];
+            const inputs = ['feedback_button_yes', 'feedback_button_no'];
 
             inputs.forEach(inputId => {
                 const element = document.getElementById(inputId);

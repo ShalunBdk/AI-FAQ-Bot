@@ -184,7 +184,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply_markup = get_categories_keyboard()
 
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='HTML')
 
 async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text
@@ -211,7 +211,7 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        response = f"**{best_meta['question']}**\n\n{best_meta['answer']}\n\n_Совпадение: {score:.0f}%_"
+        response = f"<b>{best_meta['question']}</b>\n\n{best_meta['answer']}\n\n<i>Совпадение: {score:.0f}%</i>"
 
         reply_markup = get_feedback_keyboard()
         try:
@@ -230,7 +230,7 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        await update.message.reply_text(response, parse_mode='Markdown', reply_markup=reply_markup)
+        await update.message.reply_text(response, parse_mode='HTML', reply_markup=reply_markup)
 
     except Exception as e:
         logger.error(f"Ошибка при поиске: {e}")
@@ -245,14 +245,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         category = data.replace("cat_", "")
         category_faqs = database.get_faqs_by_category(category)
 
-        response = f"📁 **Категория: {category}**\n\nПопулярные вопросы:\n\n"
+        response = f"📁 <b>Категория: {category}</b>\n\nПопулярные вопросы:\n\n"
         keyboard = []
         for faq in category_faqs:
             response += f"• {faq['question']}\n"
             keyboard.append([InlineKeyboardButton(faq['question'][:60], callback_data=f"show_{faq['id']}")])
 
         keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
-        await query.edit_message_text(response, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        await query.edit_message_text(response, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
 
     elif data.startswith("show_"):
         faq_id = data.replace("show_", "")
@@ -260,16 +260,16 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result = collection.get(ids=[faq_id], include=["metadatas", "documents"])
             if result and result.get("metadatas"):
                 metadata = result["metadatas"][0]
-                response = f"**{metadata['question']}**\n\n{metadata['answer']}"
-                await query.edit_message_text(response, reply_markup=get_feedback_keyboard(), parse_mode='Markdown')
+                response = f"<b>{metadata['question']}</b>\n\n{metadata['answer']}"
+                await query.edit_message_text(response, reply_markup=get_feedback_keyboard(), parse_mode='HTML')
             else:
-                await query.edit_message_text("❌ Не удалось получить запись.", parse_mode='Markdown')
+                await query.edit_message_text("❌ Не удалось получить запись.", parse_mode='HTML')
         except Exception as e:
             logger.error(f"Ошибка при collection.get: {e}")
-            await query.edit_message_text("❌ Ошибка при получении записи.", parse_mode='Markdown')
+            await query.edit_message_text("❌ Ошибка при получении записи.", parse_mode='HTML')
 
     elif data == "back_to_cats":
-        await query.edit_message_text("📚 **Выберите категорию:**", reply_markup=get_categories_keyboard(), parse_mode='Markdown')
+        await query.edit_message_text("📚 <b>Выберите категорию:</b>", reply_markup=get_categories_keyboard(), parse_mode='HTML')
 
     elif data == "helpful_yes":
         # Получаем ответ из настроек
