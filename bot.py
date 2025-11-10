@@ -204,18 +204,56 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if score < 50.0:
-            await update.message.reply_text(
-                f"🤔 Не уверен, что правильно понял вопрос (совпадение {score:.0f}%).\n\n"
-                "Попробуйте переформулировать или выберите категорию:",
-                reply_markup=get_categories_keyboard()
-            )
+            # Показываем лучший результат даже если совпадение низкое
+            response = f"🤔 <b>Не уверен, что правильно понял вопрос</b> (совпадение {score:.0f}%)\n\n"
+            response += f"<b>{best_meta['question']}</b>\n\n{best_meta['answer']}\n\n"
+            response += "❓ <i>Это то, что вы искали?</i>"
+
+            # Добавляем кнопки обратной связи и альтернативные варианты
+            keyboard = []
+
+            # Кнопки обратной связи
+            yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
+            no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
+            keyboard.append([
+                InlineKeyboardButton(yes_text, callback_data="helpful_yes"),
+                InlineKeyboardButton(no_text, callback_data="helpful_no")
+            ])
+
+            # Похожие вопросы
+            try:
+                for i in range(1, min(3, len(raw_results["documents"][0]))):
+                    dist = raw_results["distances"][0][i]
+                    sim = max(0.0, 1.0 - dist) * 100.0
+                    if sim > 30:
+                        q = raw_results["metadatas"][0][i]["question"]
+                        id_ = raw_results["ids"][0][i] if "ids" in raw_results else None
+                        if id_:
+                            keyboard.append([InlineKeyboardButton(f"📄 {q[:40]}... ({sim:.0f}%)", callback_data=f"show_{id_}")])
+            except Exception:
+                pass
+
+            # Кнопка к категориям
+            keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
+
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
             return
 
         response = f"<b>{best_meta['question']}</b>\n\n{best_meta['answer']}\n\n<i>Совпадение: {score:.0f}%</i>"
 
-        reply_markup = get_feedback_keyboard()
+        # Формируем клавиатуру с кнопками обратной связи
+        keyboard = []
+
+        # Кнопки обратной связи всегда добавляем
+        yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
+        no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
+        keyboard.append([
+            InlineKeyboardButton(yes_text, callback_data="helpful_yes"),
+            InlineKeyboardButton(no_text, callback_data="helpful_no")
+        ])
+
+        # Добавляем похожие вопросы если есть
         try:
-            related_keyboard = []
             for i in range(1, min(3, len(raw_results["documents"][0]))):
                 dist = raw_results["distances"][0][i]
                 sim = max(0.0, 1.0 - dist) * 100.0
@@ -223,14 +261,14 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     q = raw_results["metadatas"][0][i]["question"]
                     id_ = raw_results["ids"][0][i] if "ids" in raw_results else None
                     if id_:
-                        related_keyboard.append([InlineKeyboardButton(f"📄 {q[:40]}... ({sim:.0f}%)", callback_data=f"show_{id_}")])
-            if related_keyboard:
-                related_keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
-                reply_markup = InlineKeyboardMarkup(related_keyboard)
+                        keyboard.append([InlineKeyboardButton(f"📄 {q[:40]}... ({sim:.0f}%)", callback_data=f"show_{id_}")])
         except Exception:
             pass
 
-        await update.message.reply_text(response, parse_mode='HTML', reply_markup=reply_markup)
+        # Кнопка назад к категориям
+        keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
+
+        await update.message.reply_text(response, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
     except Exception as e:
         logger.error(f"Ошибка при поиске: {e}")
@@ -261,7 +299,22 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if result and result.get("metadatas"):
                 metadata = result["metadatas"][0]
                 response = f"<b>{metadata['question']}</b>\n\n{metadata['answer']}"
-                await query.edit_message_text(response, reply_markup=get_feedback_keyboard(), parse_mode='HTML')
+
+                # Формируем клавиатуру с кнопками обратной связи и навигацией
+                keyboard = []
+
+                # Кнопки обратной связи
+                yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
+                no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
+                keyboard.append([
+                    InlineKeyboardButton(yes_text, callback_data="helpful_yes"),
+                    InlineKeyboardButton(no_text, callback_data="helpful_no")
+                ])
+
+                # Кнопка назад к категориям
+                keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
+
+                await query.edit_message_text(response, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
             else:
                 await query.edit_message_text("❌ Не удалось получить запись.", parse_mode='HTML')
         except Exception as e:
@@ -272,13 +325,26 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📚 <b>Выберите категорию:</b>", reply_markup=get_categories_keyboard(), parse_mode='HTML')
 
     elif data == "helpful_yes":
-        # Получаем ответ из настроек
+        # Удаляем кнопки из исходного сообщения
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+        # Получаем ответ из настроек и отправляем новое сообщение
         response_yes = bot_settings_cache.get("feedback_response_yes", database.DEFAULT_BOT_SETTINGS["feedback_response_yes"])
-        await query.edit_message_text(f"{query.message.text}\n\n{response_yes}")
+        await query.message.reply_text(response_yes, parse_mode='HTML')
+
     elif data == "helpful_no":
-        # Получаем ответ из настроек
+        # Удаляем кнопки из исходного сообщения
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+        # Получаем ответ из настроек и отправляем новое сообщение
         response_no = bot_settings_cache.get("feedback_response_no", database.DEFAULT_BOT_SETTINGS["feedback_response_no"])
-        await query.edit_message_text(f"{query.message.text}\n\n{response_no}")
+        await query.message.reply_text(response_no, parse_mode='HTML')
 
 # ---------- ВСПОМОГАТЕЛЬНЫЕ ----------
 def get_categories_keyboard():
@@ -294,17 +360,6 @@ def get_categories_keyboard():
     if row:
         keyboard.append(row)
 
-    return InlineKeyboardMarkup(keyboard)
-
-def get_feedback_keyboard():
-    # Получаем тексты кнопок из настроек
-    yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
-    no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
-
-    keyboard = [
-        [InlineKeyboardButton(yes_text, callback_data="helpful_yes"),
-         InlineKeyboardButton(no_text, callback_data="helpful_no")]
-    ]
     return InlineKeyboardMarkup(keyboard)
 
 # ---------- MAIN ----------

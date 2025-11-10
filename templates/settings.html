@@ -685,13 +685,19 @@
             html = html.replace(/<pre class="ql-syntax"[^>]*>/g, '<code>');
             html = html.replace(/<\/pre>/g, '</code>');
 
+            // ВАЖНО: Telegram HTML не поддерживает <br>, используем \n
             // Убираем пустые параграфы
-            html = html.replace(/<p><br><\/p>/g, '<br>');
+            html = html.replace(/<p><br><\/p>/g, '\n');
             html = html.replace(/<p>/g, '');
-            html = html.replace(/<\/p>/g, '<br>');
+            html = html.replace(/<\/p>/g, '\n');
 
-            // Убираем лишние <br> в конце
-            html = html.replace(/(<br>)+$/g, '');
+            // Заменяем <br> на \n
+            html = html.replace(/<br>/g, '\n');
+            html = html.replace(/<br\/>/g, '\n');
+            html = html.replace(/<br \/>/g, '\n');
+
+            // Убираем лишние переносы в конце
+            html = html.replace(/\n+$/g, '');
 
             return html;
         }
