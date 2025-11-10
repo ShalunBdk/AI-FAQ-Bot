@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ Bot - Админ-панель</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .search-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #e9ecef;
+        }
+
+        .search-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .search-header h3 {
+            color: #667eea;
+            font-size: 1.3em;
+        }
+
+        .search-type-toggle {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-type-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-info {
+            padding: 12px;
+            background: #e7f3ff;
+            border-left: 4px solid #667eea;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #495057;
+        }
+
+        .search-results-count {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+        
+        .filter-left {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .filter-right {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .actions-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        select, input, button {
+            padding: 12px 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        select, input {
+            background: white;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-small {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            font-size: 18px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-small:hover {
+            background-color: #45a049;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .faq-list {
+            display: grid;
+            gap: 20px;
+        }
+
+        .faq-item {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .faq-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .faq-item.search-result {
+            border-color: #28a745;
+        }
+
+        .faq-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .faq-info {
+            flex: 1;
+        }
+
+        .faq-category {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-bottom: 10px;
+            margin-right: 10px;
+        }
+
+        .match-badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .similarity-badge {
+            display: inline-block;
+            background: #17a2b8;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .faq-question {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .faq-answer {
+            color: #666;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .faq-keywords {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .keyword {
+            background: #e9ecef;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 13px;
+            color: #495057;
+        }
+
+        .faq-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .faq-actions button {
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .form-group textarea {
+            min-height: 150px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 2000;
+            animation: slideIn 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification.success {
+            background: #28a745;
+        }
+
+        .notification.error {
+            background: #dc3545;
+        }
+
+        .notification.info {
+            background: #17a2b8;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+            color: #667eea;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state h2 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>FAQ Bot - Админ-панель</h1>
+            <p>Управление базой знаний и переобучение векторной модели</p>
+        </div>
+
+        <div class="controls">
+            <!-- Секция поиска -->
+            <div class="search-section">
+                <div class="search-header">
+                    <h3>🔍 Поиск FAQ</h3>
+                    <div class="search-type-toggle">
+                        <label>
+                            <input type="radio" name="searchType" value="text" checked>
+                            Текстовый
+                        </label>
+                        <label>
+                            <input type="radio" name="searchType" value="semantic">
+                            Семантический (AI)
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        id="searchQuery" 
+                        class="search-input" 
+                        placeholder="Введите поисковый запрос..."
+                        onkeypress="if(event.key==='Enter') performSearch()"
+                    >
+                    <button onclick="performSearch()">🔍 Искать</button>
+                    <button class="btn-secondary" onclick="clearSearch()">✖ Очистить</button>
+                </div>
+                
+                <div id="searchInfo" style="display: none;"></div>
+            </div>
+
+            <!-- Фильтры и действия -->
+            <div class="filter-group">
+                <div class="filter-left">
+                    <select id="categoryFilter">
+                        <option value="">Все категории</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-right">
+                    <button onclick="openAddModal()">+ Добавить FAQ</button>
+                    <button onclick="retrainModel()" class="btn-warning">🔄 Переобучить модель</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div id="faqList" class="faq-list">
+                <div class="loading">Загрузка данных...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal для добавления/редактирования FAQ -->
+    <div id="faqModal" class="modal">
+        <div class="modal-content">
+            <h2 class="modal-header" id="modalTitle">Добавить FAQ</h2>
+            <form id="faqForm">
+                <input type="hidden" id="faqId">
+                <div class="form-group">
+                    <div class="form-group">
+                        <label>Категория *</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <select id="faqCategory" required style="flex: 1;">
+                                <option value="">Выберите категорию</option>
+                            </select>
+                            <button type="button" id="addCategoryBtn" class="btn-small" title="Добавить категорию">+</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Вопрос *</label>
+                    <input type="text" id="faqQuestion" required>
+                </div>
+                <div class="form-group">
+                    <label>Ответ *</label>
+                    <textarea id="faqAnswer" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ключевые слова (через запятую)</label>
+                    <input type="text" id="faqKeywords" placeholder="слово1, слово2, слово3">
+                </div>
+                <div class="form-actions">
+                    <button type="button" onclick="closeModal()">Отмена</button>
+                    <button type="submit" class="btn-success">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="categoryModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <h3>Добавить категорию</h3>
+            <input type="text" id="newCategoryName" placeholder="Название категории">
+            <div class="form-actions">
+                <button type="button" onclick="closeCategoryModal()">Отмена</button>
+                <button type="button" onclick="saveCategory()" class="btn-success">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentEditId = null;
+        let isSearchActive = false;
+        let currentSearchData = null;
+
+        // Поиск FAQ
+        async function performSearch() {
+            const query = document.getElementById('searchQuery').value.trim();
+            if (!query) {
+                showNotification('Введите поисковый запрос', 'error');
+                return;
+            }
+
+            const searchType = document.querySelector('input[name="searchType"]:checked').value;
+            const searchInfo = document.getElementById('searchInfo');
+            const faqList = document.getElementById('faqList');
+            
+            searchInfo.style.display = 'block';
+            searchInfo.innerHTML = '<div class="search-info">⏳ Поиск...</div>';
+            
+            try {
+                let response;
+                
+                if (searchType === 'text') {
+                    response = await fetch(`/search?q=${encodeURIComponent(query)}`);
+                } else {
+                    response = await fetch('/search/semantic', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({query: query, n_results: 20})
+                    });
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    isSearchActive = true;
+                    currentSearchData = data;
+                    displaySearchResults(data, searchType);
+                } else {
+                    searchInfo.innerHTML = `<div class="search-info" style="background: #f8d7da; border-color: #dc3545;">❌ ${data.message}</div>`;
+                }
+                
+            } catch (error) {
+                searchInfo.innerHTML = `<div class="search-info" style="background: #f8d7da; border-color: #dc3545;">❌ Ошибка: ${error.message}</div>`;
+            }
+        }
+
+        function displaySearchResults(data, searchType) {
+            const searchInfo = document.getElementById('searchInfo');
+            const faqList = document.getElementById('faqList');
+            
+            if (data.count === 0) {
+                searchInfo.innerHTML = `
+                    <div class="search-info" style="background: #fff3cd; border-color: #ffc107;">
+                        😔 Ничего не найдено по запросу "<strong>${data.query}</strong>"
+                    </div>
+                `;
+                faqList.innerHTML = `
+                    <div class="empty-state">
+                        <h2>🔍 Нет результатов</h2>
+                        <p>Попробуйте изменить запрос или использовать другой тип поиска</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            searchInfo.innerHTML = `
+                <div class="search-info">
+                    ✅ Найдено: <span class="search-results-count">${data.count}</span> результатов 
+                    | Запрос: "<strong>${data.query}</strong>" 
+                    | Тип: <strong>${searchType === 'text' ? 'Текстовый' : 'Семантический (AI)'}</strong>
+                </div>
+            `;
+            
+            faqList.innerHTML = data.results.map(faq => {
+                let badges = '';
+                
+                if (faq.match_location && faq.match_location.length > 0) {
+                    badges = `<span class="match-badge">Найдено в: ${faq.match_location.join(', ')}</span>`;
+                }
+                
+                if (faq.similarity) {
+                    badges += `<span class="similarity-badge">Совпадение: ${faq.similarity}%</span>`;
+                }
+                
+                return `
+                    <div class="faq-item search-result">
+                        <div class="faq-header">
+                            <div class="faq-info">
+                                <div>
+                                    <div class="faq-category">${faq.category}</div>
+                                    ${badges}
+                                </div>
+                                <div class="faq-question">${faq.question}</div>
+                                <div class="faq-answer">${faq.answer}</div>
+                                ${faq.keywords && faq.keywords.length > 0 ? `
+                                    <div class="faq-keywords">
+                                        ${faq.keywords.map(k => `<span class="keyword">${k}</span>`).join('')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="faq-actions">
+                                <button onclick="editFAQ('${faq.id || ''}')" class="btn-warning">✏️ Изменить</button>
+                                <button onclick="deleteFAQ('${faq.id || ''}')" class="btn-danger">🗑️ Удалить</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function clearSearch() {
+            document.getElementById('searchQuery').value = '';
+            document.getElementById('searchInfo').style.display = 'none';
+            document.getElementById('searchInfo').innerHTML = '';
+            isSearchActive = false;
+            currentSearchData = null;
+            loadFAQs(document.getElementById('categoryFilter').value);
+        }
+
+        // Загрузка списка FAQ
+        async function loadFAQs(category = '') {
+            if (isSearchActive) return; // Не перезагружаем если активен поиск
+            
+            const url = category ? `/faq/list?category=${category}` : '/faq/list';
+            const response = await fetch(url);
+            const faqs = await response.json();
+
+            const faqList = document.getElementById('faqList');
+
+            if (faqs.length === 0) {
+                faqList.innerHTML = `
+                    <div class="empty-state">
+                        <h2>📭 Нет данных</h2>
+                        <p>Добавьте первый FAQ или выполните миграцию данных</p>
+                    </div>
+                `;
+                return;
+            }
+
+            faqList.innerHTML = faqs.map(faq => `
+                <div class="faq-item">
+                    <div class="faq-header">
+                        <div class="faq-info">
+                            <div class="faq-category">${faq.category}</div>
+                            <div class="faq-question">${faq.question}</div>
+                            <div class="faq-answer">${faq.answer}</div>
+                            ${faq.keywords.length > 0 ? `
+                                <div class="faq-keywords">
+                                    ${faq.keywords.map(k => `<span class="keyword">${k}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="faq-actions">
+                            <button onclick="editFAQ('${faq.id}')" class="btn-warning">✏️ Изменить</button>
+                            <button onclick="deleteFAQ('${faq.id}')" class="btn-danger">🗑️ Удалить</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadCategories(selectedCategory = '') {
+            const select = document.getElementById('faqCategory');
+            select.innerHTML = '<option value="">Выберите категорию</option>';
+
+            try {
+                const response = await fetch('/categories');
+                if (!response.ok) throw new Error('Ошибка загрузки категорий');
+
+                const categories = await response.json();
+                categories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    if (cat === selectedCategory) option.selected = true;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Ошибка при загрузке категорий:', error);
+            }
+        }
+
+        async function openAddModal() {
+            currentEditId = null;
+            document.getElementById('modalTitle').textContent = 'Добавить FAQ';
+            document.getElementById('faqForm').reset();
+            document.getElementById('faqId').value = '';
+            await loadCategories();
+            document.getElementById('faqModal').classList.add('active');
+        }
+
+        async function editFAQ(id) {
+            const response = await fetch(`/faq/${id}`);
+            const faq = await response.json();
+
+            currentEditId = id;
+            document.getElementById('modalTitle').textContent = 'Редактировать FAQ';
+            document.getElementById('faqId').value = faq.id;
+            loadCategories(faq.category);
+            document.getElementById('faqQuestion').value = faq.question;
+            document.getElementById('faqAnswer').value = faq.answer;
+            document.getElementById('faqKeywords').value = faq.keywords.join(', ');
+            document.getElementById('faqModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('faqModal').classList.remove('active');
+        }
+
+        document.getElementById('faqForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const data = {
+                category: document.getElementById('faqCategory').value,
+                question: document.getElementById('faqQuestion').value,
+                answer: document.getElementById('faqAnswer').value,
+                keywords: document.getElementById('faqKeywords').value
+            };
+
+            if (currentEditId) {
+                data.id = currentEditId;
+            }
+
+            let response;
+            if (currentEditId) {
+                response = await fetch(`/faq/update/${currentEditId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+            } else {
+                response = await fetch('/faq/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification(result.message, 'success');
+                closeModal();
+                clearSearch(); // Очищаем поиск и перезагружаем список
+            } else {
+                showNotification(result.message, 'error');
+            }
+        });
+
+        async function deleteFAQ(id) {
+            if (!confirm('Вы уверены, что хотите удалить этот FAQ?')) return;
+
+            const response = await fetch(`/faq/delete/${id}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification(result.message, 'success');
+                clearSearch(); // Очищаем поиск и перезагружаем список
+            } else {
+                showNotification(result.message, 'error');
+            }
+        }
+
+        async function retrainModel() {
+            if (!confirm('Вы уверены, что хотите переобучить модель? Это может занять некоторое время.')) return;
+
+            showNotification('Переобучение модели...', 'info');
+
+            const response = await fetch('/retrain', {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification(`${result.message} (${result.count} записей)`, 'success');
+            } else {
+                showNotification('Ошибка при переобучении: ' + result.message, 'error');
+            }
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        document.getElementById('addCategoryBtn').addEventListener('click', () => {
+            document.getElementById('categoryModal').classList.add('active');
+        });
+
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').classList.remove('active');
+        }
+
+        async function saveCategory() {
+            const name = document.getElementById('newCategoryName').value.trim();
+            if (!name) {
+                alert('Введите название категории');
+                return;
+            }
+
+            const response = await fetch('/categories', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name })
+            });
+
+            if (response.ok) {
+                document.getElementById('newCategoryName').value = '';
+                closeCategoryModal();
+                await loadCategories(name);
+                document.getElementById('faqCategory').value = name;
+            } else {
+                const data = await response.json();
+                alert(data.error || 'Ошибка при добавлении категории');
+            }
+        }
+
+        document.getElementById('categoryFilter').addEventListener('change', (e) => {
+            clearSearch();
+            loadFAQs(e.target.value);
+        });
+
+        document.getElementById('faqModal').addEventListener('click', (e) => {
+            if (e.target.id === 'faqModal') {
+                closeModal();
+            }
+        });
+
+        // Загрузка данных при старте
+        loadFAQs();
+    </script>
+</body>
+</html>

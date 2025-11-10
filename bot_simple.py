@@ -1,100 +1,34 @@
 """
-Telegram-бот с ChromaDB + автоперезагрузка после переобучения
+Telegram-бот с простым векторным поиском (без ChromaDB)
 """
 
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from sentence_transformers import SentenceTransformer
-import chromadb
-from chromadb.utils import embedding_functions
-from flask import Flask, request, jsonify
-import threading
+from simple_vector_search import SimpleVectorSearch
 import database
-import os
-os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 # ---------- ЛОГИРОВАНИЕ ----------
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # ---------- КОНФИГ ----------
-TELEGRAM_TOKEN = "8147196319:AAENxB3l4N2J_1EQhs2OXTgdcCIyNTaEnFI"
-MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
-RELOAD_SERVER_PORT = 5001
+TELEGRAM_TOKEN = "8006988265:AAFNahJH7opZ7BBe8ysriod5iGyMkJ363gM"
 
-# ---------- МОДЕЛЬ ----------
-print("Загрузка модели эмбеддингов...")
-model = SentenceTransformer(MODEL_NAME)
-print("Модель загружена!")
-
-# ---------- Chroma ----------
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
-embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL_NAME)
-
-# Глобальная переменная для коллекции
-collection = None
-
-def reload_collection():
-    """Перезагружает коллекцию ChromaDB"""
-    global collection
-    try:
-        collection = chroma_client.get_collection(name="faq_collection")
-        logger.info(f"✅ Коллекция перезагружена! Записей: {collection.count()}")
-        return True
-    except Exception as e:
-        logger.error(f"❌ Ошибка при перезагрузке коллекции: {e}")
-        try:
-            collection = chroma_client.create_collection(
-                name="faq_collection",
-                embedding_function=embedding_func,
-                metadata={"hnsw:space": "cosine"}
-            )
-            logger.info("Создана новая пустая коллекция")
-            return True
-        except Exception as e2:
-            logger.error(f"❌ Не удалось создать коллекцию: {e2}")
-            return False
-
-# Инициализация коллекции при старте
-reload_collection()
-
-# ---------- FLASK СЕРВЕР ДЛЯ ПРИЁМА КОМАНД ----------
-flask_app = Flask(__name__)
-
-@flask_app.route('/reload', methods=['POST'])
-def handle_reload():
-    """Эндпоинт для перезагрузки коллекции"""
-    logger.info("📡 Получен запрос на перезагрузку коллекции")
-    success = reload_collection()
-    if success:
-        return jsonify({"status": "ok", "message": "Коллекция перезагружена"}), 200
-    else:
-        return jsonify({"status": "error", "message": "Ошибка перезагрузки"}), 500
-
-@flask_app.route('/health', methods=['GET'])
-def health_check():
-    """Проверка работоспособности"""
-    return jsonify({
-        "status": "ok",
-        "collection_count": collection.count() if collection else 0
-    }), 200
-
-def run_flask():
-    """Запуск Flask-сервера в отдельном потоке"""
-    flask_app.run(host='127.0.0.1', port=RELOAD_SERVER_PORT, debug=False, use_reloader=False)
+# ---------- Векторный поиск ----------
+vector_search = SimpleVectorSearch()
 
 # ---------- ИНИЦИАЛИЗАЦИЯ ДАННЫХ ----------
-def init_demo_data():
-    """Инициализация данных в Chroma из БД (если пусто)"""
+def init_vector_search():
+    """Инициализация векторного поиска из БД"""
     try:
-        if collection.count() > 0:
-            print(f"В базе уже есть {collection.count()} записей")
+        # Пробуем загрузить из кэша
+        if vector_search.load_cache():
             return
 
-        print("Добавление данных из БД в векторную БД...")
+        print("Добавление данных из БД в векторный поиск...")
 
+        # Получаем все FAQ из базы данных
         all_faqs = database.get_all_faqs()
 
         if not all_faqs:
@@ -113,8 +47,9 @@ def init_demo_data():
             })
             ids.append(faq["id"])
 
-        collection.add(documents=documents, metadatas=metadatas, ids=ids)
-        print(f"✅ Добавлено {len(all_faqs)} записей в базу знаний")
+        # Добавляем в векторный поиск
+        vector_search.add_documents(documents, metadatas, ids)
+        print(f"✅ Добавлено {len(all_faqs)} записей в векторный поиск")
 
     except Exception as e:
         print(f"❌ Ошибка при инициализации данных: {e}")
@@ -122,29 +57,28 @@ def init_demo_data():
 # ---------- ПОИСК ----------
 def find_best_match(query_text: str, n_results: int = 3):
     """
-    Поиск в Chroma: возвращает (best_metadata, best_score_percent, results_struct)
+    Поиск: возвращает (best_metadata, best_score_percent, results_struct)
     """
     try:
-        results = collection.query(
-            query_texts=[query_text],
-            n_results=n_results,
-            include=["documents", "metadatas", "distances"],
-        )
+        results = vector_search.query(query_text, n_results=n_results)
     except Exception as e:
-        logger.error(f"Chroma query error: {e}")
+        logger.error(f"Search error: {e}")
         return None, 0.0, None
 
+    # Проверки на пустой результат
     if not results or "documents" not in results or not results["documents"] or not results["documents"][0]:
-        logger.info("Ничего не найдено в Chroma")
+        logger.info("Ничего не найдено")
         return None, 0.0, results
 
+    # Берём лучший (первый) результат
     try:
         best_meta = results["metadatas"][0][0]
         best_distance = results["distances"][0][0]
     except Exception as e:
-        logger.error(f"Ошибка при разборе результатов Chroma: {e}")
+        logger.error(f"Ошибка при разборе результатов: {e}")
         return None, 0.0, results
 
+    # Преобразуем distance -> similarity%
     similarity = max(0.0, 1.0 - best_distance) * 100.0
 
     logger.info(f"Найдено результатов: {len(results['documents'][0])}, лучший score: {similarity:.1f}%")
@@ -152,8 +86,9 @@ def find_best_match(query_text: str, n_results: int = 3):
 
 # ---------- БОТ: хендлеры ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды /start"""
     welcome_text = """👋 **Добро пожаловать в корпоративный бот-помощник!**
-    
+
 Я помогу найти ответы на вопросы о работе в компании.
 
 💡 **Просто напишите свой вопрос**, например:
@@ -163,9 +98,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • "Как отправить посылку?"
 
 📚 Или выберите категорию:"""
-    
-    reply_markup = get_categories_keyboard()
-    
+
+    keyboard = [
+        [InlineKeyboardButton("👔 HR", callback_data="cat_HR"),
+         InlineKeyboardButton("💰 Бухгалтерия", callback_data="cat_Бухгалтерия")],
+        [InlineKeyboardButton("🏭 Производство", callback_data="cat_Производство"),
+         InlineKeyboardButton("💻 ИТ", callback_data="cat_ИТ")],
+        [InlineKeyboardButton("🗂 Офис-менеджер", callback_data="cat_Офис-менеджер"),
+         InlineKeyboardButton("⚖️ Юристы", callback_data="cat_Юристы")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -185,6 +128,7 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+        # Порог можно настроить
         if score < 50.0:
             await update.message.reply_text(
                 f"🤔 Не уверен, что правильно понял вопрос (совпадение {score:.0f}%).\n\n"
@@ -193,11 +137,15 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+        # Формируем ответ
         response = f"**{best_meta['question']}**\n\n{best_meta['answer']}\n\n_Совпадение: {score:.0f}%_"
 
+        # Опционально: предложить похожие вопросы из raw_results
         reply_markup = get_feedback_keyboard()
+        # Пример добавления похожих вопросов в клавиатуру (если есть)
         try:
             related_keyboard = []
+            # raw_results содержит документы/metadatas/distances по порядку
             for i in range(1, min(3, len(raw_results["documents"][0]))):
                 dist = raw_results["distances"][0][i]
                 sim = max(0.0, 1.0 - dist) * 100.0
@@ -210,6 +158,7 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 related_keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
                 reply_markup = InlineKeyboardMarkup(related_keyboard)
         except Exception:
+            # Игнорируем если нет related
             pass
 
         await update.message.reply_text(response, parse_mode='Markdown', reply_markup=reply_markup)
@@ -225,6 +174,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("cat_"):
         category = data.replace("cat_", "")
+        # Фильтрация по категории из БД
         category_faqs = database.get_faqs_by_category(category)
 
         response = f"📁 **Категория: {category}**\n\nПопулярные вопросы:\n\n"
@@ -238,8 +188,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("show_"):
         faq_id = data.replace("show_", "")
+        # Используем vector_search.get
         try:
-            result = collection.get(ids=[faq_id], include=["metadatas", "documents"])
+            result = vector_search.get(ids=[faq_id])
             if result and result.get("metadatas"):
                 metadata = result["metadatas"][0]
                 response = f"**{metadata['question']}**\n\n{metadata['answer']}"
@@ -247,7 +198,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await query.edit_message_text("❌ Не удалось получить запись.", parse_mode='Markdown')
         except Exception as e:
-            logger.error(f"Ошибка при collection.get: {e}")
+            logger.error(f"Ошибка при получении FAQ: {e}")
             await query.edit_message_text("❌ Ошибка при получении записи.", parse_mode='Markdown')
 
     elif data == "back_to_cats":
@@ -260,18 +211,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------- ВСПОМОГАТЕЛЬНЫЕ ----------
 def get_categories_keyboard():
-    categories = database.get_all_categories()
-
-    keyboard = []
-    row = []
-    for i, cat in enumerate(categories, start=1):
-        row.append(InlineKeyboardButton(cat, callback_data=f"cat_{cat}"))
-        if i % 2 == 0:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-
+    keyboard = [
+        [InlineKeyboardButton("👔 HR", callback_data="cat_HR"),
+         InlineKeyboardButton("💰 Бухгалтерия", callback_data="cat_Бухгалтерия")],
+        [InlineKeyboardButton("🏭 Производство", callback_data="cat_Производство"),
+         InlineKeyboardButton("💻 ИТ", callback_data="cat_ИТ")],
+        [InlineKeyboardButton("🗂 Офис-менеджер", callback_data="cat_Офис-менеджер"),
+         InlineKeyboardButton("⚖️ Юристы", callback_data="cat_Юристы")],
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 def get_feedback_keyboard():
@@ -285,14 +232,7 @@ def get_feedback_keyboard():
 def main():
     # Инициализируем БД
     database.init_database()
-    init_demo_data()
-    
-    # Запускаем Flask-сервер в отдельном потоке
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    print(f"🔄 Сервер перезагрузки запущен на http://127.0.0.1:{RELOAD_SERVER_PORT}")
-    
-    # Запускаем бота
+    init_vector_search()
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))

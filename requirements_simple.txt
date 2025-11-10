@@ -1,0 +1,16 @@
+# Упрощённая версия зависимостей (БЕЗ ChromaDB - не требует компиляции C++)
+# Установка: pip install -r requirements_simple.txt
+
+# Telegram Bot
+python-telegram-bot>=20.0
+
+# Векторизация и NLP
+sentence-transformers>=2.2.2
+scikit-learn>=1.0.0
+numpy>=1.21.0
+
+# Веб-интерфейс для управления FAQ
+Flask>=3.0.0
+
+# Утилиты
+python-dotenv>=1.0.0
