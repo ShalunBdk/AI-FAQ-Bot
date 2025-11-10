@@ -703,6 +703,33 @@
             return html;
         }
 
+        // Конвертация Telegram HTML в Quill HTML (обратная конвертация)
+        function convertTelegramToQuillHtml(html) {
+            if (!html) return '<p><br></p>';
+
+            // Конвертируем теги Telegram в теги Quill
+            html = html.replace(/<b>/g, '<strong>');
+            html = html.replace(/<\/b>/g, '</strong>');
+            html = html.replace(/<i>/g, '<em>');
+            html = html.replace(/<\/i>/g, '</em>');
+
+            // Конвертируем code в pre
+            html = html.replace(/<code>/g, '<code class="ql-code">');
+
+            // Разбиваем по \n и оборачиваем в <p> теги
+            const lines = html.split('\n');
+            const paragraphs = lines.map(line => {
+                // Если строка пустая, создаем пустой параграф
+                if (line.trim() === '') {
+                    return '<p><br></p>';
+                }
+                // Иначе оборачиваем в <p>
+                return '<p>' + line + '</p>';
+            });
+
+            return paragraphs.join('');
+        }
+
         // Загрузка настроек при старте
         async function loadSettings() {
             try {
@@ -719,21 +746,28 @@
                     // Инициализируем WYSIWYG редакторы
                     initWysiwygEditors();
 
-                    // Загружаем HTML в Quill редакторы
+                    // Загружаем HTML в Quill редакторы, конвертируя из Telegram HTML
                     if (editors['start_message']) {
-                        editors['start_message'].root.innerHTML = settings.start_message || '';
+                        const quillHtml = convertTelegramToQuillHtml(settings.start_message || '');
+                        editors['start_message'].root.innerHTML = quillHtml;
+                        // Триггерим обновление textarea
+                        const html = convertQuillToTelegramHtml(editors['start_message'].root.innerHTML);
+                        document.getElementById('start_message').value = html;
                     }
                     if (editors['feedback_response_yes']) {
-                        editors['feedback_response_yes'].root.innerHTML = settings.feedback_response_yes || '';
+                        const quillHtml = convertTelegramToQuillHtml(settings.feedback_response_yes || '');
+                        editors['feedback_response_yes'].root.innerHTML = quillHtml;
+                        // Триггерим обновление textarea
+                        const html = convertQuillToTelegramHtml(editors['feedback_response_yes'].root.innerHTML);
+                        document.getElementById('feedback_response_yes').value = html;
                     }
                     if (editors['feedback_response_no']) {
-                        editors['feedback_response_no'].root.innerHTML = settings.feedback_response_no || '';
+                        const quillHtml = convertTelegramToQuillHtml(settings.feedback_response_no || '');
+                        editors['feedback_response_no'].root.innerHTML = quillHtml;
+                        // Триггерим обновление textarea
+                        const html = convertQuillToTelegramHtml(editors['feedback_response_no'].root.innerHTML);
+                        document.getElementById('feedback_response_no').value = html;
                     }
-
-                    // Обновляем textarea из редакторов
-                    document.getElementById('start_message').value = settings.start_message || '';
-                    document.getElementById('feedback_response_yes').value = settings.feedback_response_yes || '';
-                    document.getElementById('feedback_response_no').value = settings.feedback_response_no || '';
 
                     // Обновляем превью
                     updateAllPreviews();
