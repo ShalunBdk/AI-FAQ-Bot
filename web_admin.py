@@ -3,7 +3,7 @@
 Flask веб-приложение для управления FAQ и переобучения ChromaDB
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response
 import uuid
 import database
 from chromadb.utils import embedding_functions
@@ -11,6 +11,8 @@ import logging
 import os
 import signal
 import requests
+from io import BytesIO, TextIOWrapper
+import csv
 
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
@@ -526,9 +528,6 @@ def export_logs():
     Параметры: такие же как в /api/logs/list
     """
     try:
-        import csv
-        from io import StringIO
-        from flask import make_response
 
         # Параметры фильтрации (те же что и для get_logs)
         user_id = request.args.get('user_id')
@@ -541,9 +540,9 @@ def export_logs():
         date_to = request.args.get('date_to')
         search_text = request.args.get('search')
 
-        # Получаем все логи (без пагинации)
+        # Получаем все логи
         logs, total = database.get_logs(
-            limit=10000,  # Максимум для экспорта
+            limit=10000,
             offset=0,
             user_id=user_id,
             faq_id=faq_id,
@@ -553,9 +552,11 @@ def export_logs():
             search_text=search_text
         )
 
-        # Создаем CSV
-        si = StringIO()
-        writer = csv.writer(si, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        # Создаем CSV в памяти
+        output = BytesIO()
+        wrapper = TextIOWrapper(output, encoding='utf-8-sig', newline='')
+
+        writer = csv.writer(wrapper, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
         # Заголовки
         writer.writerow([
@@ -572,24 +573,33 @@ def export_logs():
 
         # Данные
         for log in logs:
+            query_timestamp = log.get('query_timestamp', '')
+            rating_timestamp = log.get('rating_timestamp', '')
+            user_id_val = log.get('user_id')
+            similarity = round(log.get('similarity_score', 0), 1) if log.get('similarity_score') is not None else ''
+            rating_val = log.get('rating', '')
+
             writer.writerow([
-                log.get('query_timestamp', ''),
-                log.get('user_id', ''),
+                query_timestamp,
+                int(user_id_val) if user_id_val is not None else '',
                 log.get('username', ''),
                 log.get('query_text', ''),
                 log.get('category', ''),
                 log.get('faq_question', ''),
-                round(log.get('similarity_score', 0), 1) if log.get('similarity_score') else '',
-                log.get('rating', ''),
-                log.get('rating_timestamp', '')
+                similarity,
+                rating_val,
+                rating_timestamp
             ])
 
-        # Формируем ответ
-        output = make_response(si.getvalue())
-        output.headers["Content-Disposition"] = "attachment; filename=logs_export.csv"
-        output.headers["Content-type"] = "text/csv; charset=utf-8-sig"  # utf-8-sig для Excel
+        # Flush TextIOWrapper, чтобы данные попали в BytesIO
+        wrapper.flush()
 
-        return output
+        # Теперь можно безопасно получить байты
+        resp = make_response(output.getvalue())
+        resp.headers["Content-Disposition"] = "attachment; filename=logs_export.csv"
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+
+        return resp
 
     except Exception as e:
         logger.error(f"Ошибка при экспорте логов: {e}")
