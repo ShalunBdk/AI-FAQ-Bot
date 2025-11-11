@@ -5,6 +5,7 @@ Telegram-бот с ChromaDB + автоперезагрузка после пер
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+from telegram.error import TimedOut, NetworkError, TelegramError, RetryAfter
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.utils import embedding_functions
@@ -12,24 +13,141 @@ from flask import Flask, request, jsonify
 import threading
 import database
 import os
+import asyncio
+from dotenv import load_dotenv
+
+# Загружаем переменные окружения из .env
+load_dotenv()
+
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 # ---------- ЛОГИРОВАНИЕ ----------
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+import logging_config
+logging_config.configure_root_logger(level=logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+# ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ЗАЩИТЫ ОТ ОШИБОК ----------
+import time
+
+def put_bot_to_sleep(duration=30):
+    """Переводит бота в режим сна на указанное количество секунд"""
+    global bot_is_sleeping, sleep_until, timeout_errors_count
+    bot_is_sleeping = True
+    sleep_until = time.time() + duration
+    timeout_errors_count = 0  # Сбрасываем счетчик
+    logger.warning(f"🛌 Бот уходит в сон на {duration} секунд из-за проблем с подключением...")
+
+def check_if_bot_awake():
+    """Проверяет, не спит ли бот. Возвращает True если бот проснулся"""
+    global bot_is_sleeping, sleep_until
+    if bot_is_sleeping and time.time() >= sleep_until:
+        bot_is_sleeping = False
+        sleep_until = None
+        logger.info("✅ Бот проснулся и готов к работе!")
+        return True
+    return not bot_is_sleeping
+
+def record_timeout_error():
+    """Записывает ошибку таймаута и проверяет, нужно ли отправить бота спать"""
+    global timeout_errors_count, last_error_time
+
+    current_time = time.time()
+
+    # Если прошло больше 5 минут с последней ошибки, сбрасываем счетчик
+    if last_error_time and (current_time - last_error_time) > 300:
+        timeout_errors_count = 0
+
+    timeout_errors_count += 1
+    last_error_time = current_time
+
+    # Если за короткое время произошло 3+ ошибок, отправляем бота спать
+    if timeout_errors_count >= 3:
+        put_bot_to_sleep(10)
+        return True
+    return False
+
+async def safe_send_message(func, *args, max_retries=3, user_id=None, **kwargs):
+    """
+    Обертка для безопасной отправки сообщений с повторными попытками при ошибках
+
+    Args:
+        func: async функция отправки сообщения (reply_text, edit_message_text и т.д.)
+        max_retries: максимальное количество попыток
+        user_id: ID пользователя (для user-level rate limiting)
+        *args, **kwargs: аргументы для функции
+
+    Returns:
+        Result of func or None if all retries failed
+    """
+    for attempt in range(max_retries):
+        try:
+            return await func(*args, **kwargs)
+        except RetryAfter as e:
+            # Rate limit от Telegram - это проблема конкретного пользователя, не всего бота
+            retry_after = e.retry_after
+            logger.warning(f"Rate limit от Telegram для пользователя {user_id}: retry_after={retry_after}с")
+
+            # Отправляем пользователя в кулдаун
+            if user_id:
+                put_user_in_cooldown(user_id, duration=int(retry_after) + 5)
+
+            # Не переповторяем, просто возвращаем None
+            return None
+        except TimedOut as e:
+            # Записываем ошибку таймаута
+            if record_timeout_error():
+                # Бот ушел в сон, прекращаем попытки
+                return None
+
+            wait_time = (attempt + 1) * 2  # Экспоненциальная задержка: 2, 4, 6 секунд
+            logger.warning(f"Timeout при отправке сообщения (попытка {attempt + 1}/{max_retries}). Ожидание {wait_time}с...")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"Не удалось отправить сообщение после {max_retries} попыток: {e}")
+                return None
+        except NetworkError as e:
+            # Записываем сетевую ошибку как таймаут
+            if record_timeout_error():
+                # Бот ушел в сон, прекращаем попытки
+                return None
+
+            wait_time = (attempt + 1) * 2
+            logger.warning(f"Сетевая ошибка (попытка {attempt + 1}/{max_retries}). Ожидание {wait_time}с...")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"Сетевая ошибка после {max_retries} попыток: {e}")
+                return None
+        except TelegramError as e:
+            # Другие ошибки Telegram API (не повторяем попытки для них)
+            logger.error(f"Telegram API ошибка: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при отправке сообщения: {e}")
+            return None
+    return None
+
 # ---------- КОНФИГ ----------
-TELEGRAM_TOKEN = "8006988265:AAFNahJH7opZ7BBe8ysriod5iGyMkJ363gM"
-MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+if not TELEGRAM_TOKEN:
+    raise ValueError("❌ TELEGRAM_TOKEN не найден в .env файле! Создайте .env и укажите токен бота.")
+
+MODEL_NAME = os.getenv("MODEL_NAME", "paraphrase-multilingual-MiniLM-L12-v2")
 RELOAD_SERVER_PORT = 5001
+
+# Порог схожести для показа ответа (в процентах, 0-100)
+# Если не указан в .env, используется 45%
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "45.0"))
 
 # ---------- МОДЕЛЬ ----------
 print("Загрузка модели эмбеддингов...")
 model = SentenceTransformer(MODEL_NAME)
 print("Модель загружена!")
+print(f"⚙️  Порог схожести для показа ответа: {SIMILARITY_THRESHOLD}%")
 
 # ---------- Chroma ----------
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -38,6 +156,76 @@ embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(model_
 # Глобальные переменные
 collection = None
 bot_settings_cache = {}
+bot_is_sleeping = False
+sleep_until = None
+timeout_errors_count = 0
+last_error_time = None
+
+# User-level rate limiting
+user_last_action = {}  # {user_id: timestamp}
+user_cooldown = {}  # {user_id: cooldown_until_timestamp}
+user_last_callback = {}  # {user_id: (callback_data, timestamp)} для debouncing
+
+def check_user_rate_limit(user_id: int, min_interval: float = 0.5) -> bool:
+    """
+    Проверяет, не слишком ли часто пользователь отправляет запросы.
+
+    Args:
+        user_id: ID пользователя
+        min_interval: минимальный интервал между действиями в секундах
+
+    Returns:
+        True если можно обработать запрос, False если пользователь спамит
+    """
+    current_time = time.time()
+
+    # Проверяем, не в кулдауне ли пользователь
+    if user_id in user_cooldown:
+        if current_time < user_cooldown[user_id]:
+            remaining = int(user_cooldown[user_id] - current_time)
+            logger.warning(f"Пользователь {user_id} в кулдауне. Осталось {remaining}с")
+            return False
+        else:
+            # Кулдаун истек
+            del user_cooldown[user_id]
+
+    # Проверяем частоту запросов
+    if user_id in user_last_action:
+        time_since_last = current_time - user_last_action[user_id]
+        if time_since_last < min_interval:
+            logger.info(f"Пользователь {user_id} слишком быстро отправляет запросы ({time_since_last:.2f}с)")
+            return False
+
+    user_last_action[user_id] = current_time
+    return True
+
+def put_user_in_cooldown(user_id: int, duration: int = 10):
+    """Отправляет конкретного пользователя в кулдаун"""
+    user_cooldown[user_id] = time.time() + duration
+    logger.warning(f"⏱️ Пользователь {user_id} отправлен в кулдаун на {duration}с из-за спама")
+
+def check_callback_debounce(user_id: int, callback_data: str, debounce_time: float = 1.0) -> bool:
+    """
+    Проверяет, не является ли это повторным нажатием той же кнопки.
+
+    Args:
+        user_id: ID пользователя
+        callback_data: данные callback кнопки
+        debounce_time: время в секундах для игнорирования повторных нажатий
+
+    Returns:
+        True если это новое действие, False если это дубликат
+    """
+    current_time = time.time()
+
+    if user_id in user_last_callback:
+        last_data, last_time = user_last_callback[user_id]
+        if last_data == callback_data and (current_time - last_time) < debounce_time:
+            logger.info(f"Игнорируем повторное нажатие кнопки '{callback_data}' от пользователя {user_id}")
+            return False
+
+    user_last_callback[user_id] = (callback_data, current_time)
+    return True
 
 def reload_bot_settings():
     """Перезагружает настройки бота из БД"""
@@ -179,18 +367,54 @@ def find_best_match(query_text: str, n_results: int = 3):
 
 # ---------- БОТ: хендлеры ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Проверяем, не спит ли бот
+    if not check_if_bot_awake():
+        remaining_time = int(sleep_until - time.time())
+        logger.info(f"Бот спит. Осталось {remaining_time} секунд")
+        try:
+            await update.message.reply_text(
+                f"⚠️ Извините, сейчас возникли технические проблемы с подключением к Telegram.\n"
+                f"Бот автоматически возобновит работу через {remaining_time} сек.\n\n"
+                f"Пожалуйста, повторите ваш запрос через несколько секунд."
+            )
+        except Exception:
+            pass
+        return
+
     # Получаем текст приветствия из настроек
     welcome_text = bot_settings_cache.get("start_message", database.DEFAULT_BOT_SETTINGS["start_message"])
 
     reply_markup = get_categories_keyboard()
 
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='HTML')
+    result = await safe_send_message(
+        update.message.reply_text,
+        welcome_text,
+        reply_markup=reply_markup,
+        parse_mode='HTML'
+    )
+
+    if result is None:
+        logger.error("Не удалось отправить приветственное сообщение пользователю")
 
 async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Проверяем, не спит ли бот
+    if not check_if_bot_awake():
+        remaining_time = int(sleep_until - time.time())
+        logger.info(f"Бот спит. Осталось {remaining_time} секунд")
+        try:
+            await update.message.reply_text(
+                f"⚠️ Извините, сейчас возникли технические проблемы с подключением к Telegram.\n"
+                f"Бот автоматически возобновит работу через {remaining_time} сек.\n\n"
+                f"Пожалуйста, повторите ваш запрос через несколько секунд."
+            )
+        except Exception:
+            pass
+        return
+
     query = update.message.text
     user = update.message.from_user
     logger.info(f"Запрос от {user.first_name} ({user.id}): {query}")
-    await update.message.reply_text("🔍 Ищу ответ...")
+    await safe_send_message(update.message.reply_text, "🔍 Ищу ответ...")
 
     # Логирование запроса
     query_log_id = database.add_query_log(
@@ -204,6 +428,7 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not best_meta:
             # Логируем отсутствие ответа
+            logger.warning(f"❌ Ответ не найден для запроса: '{query}' от пользователя {user.id}")
             if query_log_id:
                 database.add_answer_log(
                     query_log_id=query_log_id,
@@ -212,15 +437,38 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     answer_shown="Ответ не найден"
                 )
 
-            await update.message.reply_text(
+            await safe_send_message(
+                update.message.reply_text,
                 "😔 К сожалению, я не нашёл ответа на ваш вопрос.\n\n"
-                "Попробуйте переформулировать или выберите категорию:",
+                "Я передам ваш запрос создателям бота, и они постараются добавить ответ в ближайшее время.\n\n"
+                "А пока попробуйте переформулировать вопрос или выберите категорию:",
                 reply_markup=get_categories_keyboard()
             )
             return
 
         # Получаем ID FAQ из результатов
         faq_id = raw_results["ids"][0][0] if raw_results and "ids" in raw_results and raw_results["ids"] else None
+
+        # Если совпадение слишком низкое (< порога), не показываем ответ
+        if score < SIMILARITY_THRESHOLD:
+            logger.warning(f"❌ Совпадение слишком низкое ({score:.1f}%) для запроса: '{query}' от пользователя {user.id}")
+            # Логируем что ответ не найден
+            if query_log_id:
+                database.add_answer_log(
+                    query_log_id=query_log_id,
+                    faq_id=None,
+                    similarity_score=score,
+                    answer_shown=f"Совпадение слишком низкое ({score:.1f}%). Ответ не показан"
+                )
+
+            await safe_send_message(
+                update.message.reply_text,
+                "😔 К сожалению, я не нашёл подходящего ответа на ваш вопрос.\n\n"
+                "Я передам ваш запрос создателям бота, и они постараются добавить ответ в ближайшее время.\n\n"
+                "А пока попробуйте переформулировать вопрос или выберите категорию:",
+                reply_markup=get_categories_keyboard()
+            )
+            return
 
         # Логируем показанный ответ
         answer_log_id = None
@@ -231,42 +479,6 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 similarity_score=score,
                 answer_shown=best_meta['answer']
             )
-
-        if score < 50.0:
-            # Показываем лучший результат даже если совпадение низкое
-            response = f"🤔 <b>Не уверен, что правильно понял вопрос</b> (совпадение {score:.0f}%)\n\n"
-            response += f"<b>{best_meta['question']}</b>\n\n{best_meta['answer']}\n\n"
-            response += "❓ <i>Это то, что вы искали?</i>"
-
-            # Добавляем кнопки обратной связи и альтернативные варианты
-            keyboard = []
-
-            # Кнопки обратной связи
-            yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
-            no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
-            keyboard.append([
-                InlineKeyboardButton(yes_text, callback_data=f"helpful_yes_{answer_log_id or 0}"),
-                InlineKeyboardButton(no_text, callback_data=f"helpful_no_{answer_log_id or 0}")
-            ])
-
-            # Похожие вопросы
-            try:
-                for i in range(1, min(3, len(raw_results["documents"][0]))):
-                    dist = raw_results["distances"][0][i]
-                    sim = max(0.0, 1.0 - dist) * 100.0
-                    if sim > 30:
-                        q = raw_results["metadatas"][0][i]["question"]
-                        id_ = raw_results["ids"][0][i] if "ids" in raw_results else None
-                        if id_:
-                            keyboard.append([InlineKeyboardButton(f"📄 {q[:40]}... ({sim:.0f}%)", callback_data=f"show_{id_}")])
-            except Exception:
-                pass
-
-            # Кнопка к категориям
-            keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
-
-            await update.message.reply_text(response, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-            return
 
         response = f"<b>{best_meta['question']}</b>\n\n{best_meta['answer']}\n\n<i>Совпадение: {score:.0f}%</i>"
 
@@ -286,7 +498,7 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for i in range(1, min(3, len(raw_results["documents"][0]))):
                 dist = raw_results["distances"][0][i]
                 sim = max(0.0, 1.0 - dist) * 100.0
-                if sim > 30:
+                if sim > SIMILARITY_THRESHOLD:
                     q = raw_results["metadatas"][0][i]["question"]
                     id_ = raw_results["ids"][0][i] if "ids" in raw_results else None
                     if id_:
@@ -297,16 +509,75 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Кнопка назад к категориям
         keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
 
-        await update.message.reply_text(response, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        await safe_send_message(
+            update.message.reply_text,
+            response,
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
     except Exception as e:
         logger.error(f"Ошибка при поиске: {e}")
-        await update.message.reply_text("⚠️ Произошла ошибка при поиске. Попробуйте ещё раз.")
+        await safe_send_message(
+            update.message.reply_text,
+            "⚠️ Произошла ошибка при поиске. Попробуйте ещё раз."
+        )
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    user = query.from_user
     data = query.data
+
+    # Проверяем, не спит ли бот
+    if not check_if_bot_awake():
+        remaining_time = int(sleep_until - time.time())
+        logger.info(f"Бот спит. Осталось {remaining_time} секунд")
+        try:
+            await query.answer(
+                f"⚠️ Технические проблемы с подключением.\nБот возобновит работу через {remaining_time}с",
+                show_alert=True
+            )
+        except Exception:
+            pass
+        return
+
+    # Проверка debouncing - игнорируем повторные клики по той же кнопке
+    if not check_callback_debounce(user.id, data, debounce_time=1.0):
+        # Просто отвечаем на callback без обработки
+        try:
+            await query.answer(cache_time=2)
+        except Exception:
+            pass
+        return
+
+    # Проверка user-level rate limiting
+    if not check_user_rate_limit(user.id, min_interval=0.3):
+        try:
+            # Если пользователь в кулдауне, показываем предупреждение
+            if user.id in user_cooldown:
+                remaining = int(user_cooldown[user.id] - time.time())
+                await query.answer(
+                    f"⏱️ Слишком много запросов. Подождите {remaining}с",
+                    show_alert=True,
+                    cache_time=5
+                )
+            else:
+                # Просто игнорируем слишком быстрые клики
+                await query.answer(cache_time=1)
+        except Exception:
+            pass
+        return
+
+    # Стандартный ответ на callback
+    try:
+        await query.answer()
+    except RetryAfter as e:
+        # Rate limit от Telegram
+        put_user_in_cooldown(user.id, duration=int(e.retry_after) + 5)
+        logger.warning(f"Rate limit для пользователя {user.id} в button_callback")
+        return
+    except Exception as e:
+        logger.warning(f"Не удалось ответить на callback query: {e}")
 
     if data.startswith("cat_"):
         category = data.replace("cat_", "")
@@ -319,11 +590,16 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append([InlineKeyboardButton(faq['question'][:60], callback_data=f"show_{faq['id']}")])
 
         keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
-        await query.edit_message_text(response, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+        await safe_send_message(
+            query.edit_message_text,
+            response,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML',
+            user_id=user.id
+        )
 
     elif data.startswith("show_"):
         faq_id = data.replace("show_", "")
-        user = query.from_user
         try:
             result = collection.get(ids=[faq_id], include=["metadatas", "documents"])
             if result and result.get("metadatas"):
@@ -360,15 +636,37 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Кнопка назад к категориям
                 keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
 
-                await query.edit_message_text(response, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+                await safe_send_message(
+                    query.edit_message_text,
+                    response,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode='HTML',
+                    user_id=user.id
+                )
             else:
-                await query.edit_message_text("❌ Не удалось получить запись.", parse_mode='HTML')
+                await safe_send_message(
+                    query.edit_message_text,
+                    "❌ Не удалось получить запись.",
+                    parse_mode='HTML',
+                    user_id=user.id
+                )
         except Exception as e:
             logger.error(f"Ошибка при collection.get: {e}")
-            await query.edit_message_text("❌ Ошибка при получении записи.", parse_mode='HTML')
+            await safe_send_message(
+                query.edit_message_text,
+                "❌ Ошибка при получении записи.",
+                parse_mode='HTML',
+                user_id=user.id
+            )
 
     elif data == "back_to_cats":
-        await query.edit_message_text("📚 <b>Выберите категорию:</b>", reply_markup=get_categories_keyboard(), parse_mode='HTML')
+        await safe_send_message(
+            query.edit_message_text,
+            "📚 <b>Выберите категорию:</b>",
+            reply_markup=get_categories_keyboard(),
+            parse_mode='HTML',
+            user_id=user.id
+        )
 
     elif data.startswith("helpful_yes_"):
         answer_log_id = int(data.replace("helpful_yes_", ""))
@@ -390,11 +688,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Получаем ответ из настроек и отправляем новое сообщение
         response_yes = bot_settings_cache.get("feedback_response_yes", database.DEFAULT_BOT_SETTINGS["feedback_response_yes"])
-        await query.message.reply_text(response_yes, parse_mode='HTML')
+        await safe_send_message(
+            query.message.reply_text,
+            response_yes,
+            parse_mode='HTML',
+            user_id=user.id
+        )
 
     elif data.startswith("helpful_no_"):
         answer_log_id = int(data.replace("helpful_no_", ""))
-        user = query.from_user
 
         # Логируем отрицательную оценку
         if answer_log_id > 0:
@@ -412,7 +714,41 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Получаем ответ из настроек и отправляем новое сообщение
         response_no = bot_settings_cache.get("feedback_response_no", database.DEFAULT_BOT_SETTINGS["feedback_response_no"])
-        await query.message.reply_text(response_no, parse_mode='HTML')
+        await safe_send_message(
+            query.message.reply_text,
+            response_no,
+            parse_mode='HTML',
+            user_id=user.id
+        )
+
+# ---------- ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОШИБОК ----------
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Глобальный обработчик ошибок для бота"""
+    logger.error("Исключение при обработке обновления:", exc_info=context.error)
+
+    # Если это rate limit - обрабатываем на уровне пользователя
+    if isinstance(context.error, RetryAfter):
+        retry_after = context.error.retry_after
+        if isinstance(update, Update) and update.effective_user:
+            user_id = update.effective_user.id
+            put_user_in_cooldown(user_id, duration=int(retry_after) + 5)
+            logger.warning(f"Rate limit для пользователя {user_id}: retry_after={retry_after}с")
+        return
+
+    # Если это ошибка таймаута или сетевая ошибка
+    if isinstance(context.error, (TimedOut, NetworkError)):
+        if record_timeout_error():
+            logger.warning("Бот переведен в режим сна из-за множественных ошибок")
+        return
+
+    # Пытаемся уведомить пользователя об ошибке
+    if isinstance(update, Update) and update.effective_message:
+        try:
+            await update.effective_message.reply_text(
+                "⚠️ Произошла ошибка. Пожалуйста, попробуйте позже."
+            )
+        except Exception:
+            pass
 
 # ---------- ВСПОМОГАТЕЛЬНЫЕ ----------
 def get_categories_keyboard():
@@ -441,13 +777,24 @@ def main():
     flask_thread.start()
     print(f"🔄 Сервер перезагрузки запущен на http://127.0.0.1:{RELOAD_SERVER_PORT}")
     
-    # Запускаем бота
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    # Запускаем бота с увеличенными таймаутами
+    app = (
+        Application.builder()
+        .token(TELEGRAM_TOKEN)
+        .connect_timeout(30.0)  # Таймаут подключения: 30 секунд
+        .read_timeout(30.0)     # Таймаут чтения: 30 секунд
+        .write_timeout(30.0)    # Таймаут записи: 30 секунд
+        .pool_timeout(30.0)     # Таймаут pool: 30 секунд
+        .build()
+    )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", start))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search_faq))
+
+    # Регистрируем глобальный обработчик ошибок
+    app.add_error_handler(error_handler)
 
     print("🤖 Бот запущен! Нажмите Ctrl+C для остановки")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

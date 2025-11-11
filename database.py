@@ -7,8 +7,44 @@
 import sqlite3
 from typing import List, Dict, Optional
 from contextlib import contextmanager
+from datetime import datetime, timezone, timedelta
+import os
+from dotenv import load_dotenv
+
+# Загружаем переменные окружения
+load_dotenv()
 
 DB_FILE = "faq_database.db"
+
+# Порог схожести для фильтрации (в процентах)
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "45.0"))
+
+# Часовой пояс UTC+7
+UTC7_TZ = timezone(timedelta(hours=7))
+
+
+def convert_utc_to_utc7(utc_timestamp_str: Optional[str]) -> Optional[str]:
+    """
+    Конвертирует UTC timestamp из БД в UTC+7
+
+    :param utc_timestamp_str: Timestamp в формате SQLite (например, '2024-01-01 12:00:00')
+    :return: Timestamp в формате UTC+7 или None
+    """
+    if not utc_timestamp_str:
+        return None
+
+    try:
+        # Парсим UTC timestamp
+        utc_dt = datetime.strptime(utc_timestamp_str, '%Y-%m-%d %H:%M:%S')
+        # Добавляем информацию о timezone (UTC)
+        utc_dt = utc_dt.replace(tzinfo=timezone.utc)
+        # Конвертируем в UTC+7
+        utc7_dt = utc_dt.astimezone(UTC7_TZ)
+        # Возвращаем в формате строки
+        return utc7_dt.strftime('%Y-%m-%d %H:%M:%S')
+    except Exception as e:
+        print(f"Ошибка конвертации timestamp: {e}")
+        return utc_timestamp_str
 
 
 @contextmanager
@@ -419,7 +455,8 @@ def get_logs(
     rating_filter: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    search_text: Optional[str] = None
+    search_text: Optional[str] = None,
+    no_answer: bool = False
 ) -> tuple[List[Dict], int]:
     """
     Получить логи с фильтрацией и пагинацией
@@ -432,6 +469,7 @@ def get_logs(
     :param date_from: Начальная дата (ISO format)
     :param date_to: Конечная дата (ISO format)
     :param search_text: Поиск по тексту запроса
+    :param no_answer: Показывать только запросы без ответа (faq_id IS NULL или совпадение < SIMILARITY_THRESHOLD)
     :return: (список логов, общее количество записей)
     """
     try:
@@ -492,6 +530,10 @@ def get_logs(
                 query += " AND ql.query_text LIKE ?"
                 params.append(f"%{search_text}%")
 
+            if no_answer:
+                # Показываем только запросы где не нашелся ответ (faq_id IS NULL или совпадение < порога)
+                query += f" AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})"
+
             # Подсчет общего количества
             count_query = f"SELECT COUNT(*) as total FROM ({query})"
             cursor.execute(count_query, params)
@@ -511,14 +553,14 @@ def get_logs(
                     "user_id": row["user_id"],
                     "username": row["username"],
                     "query_text": row["query_text"],
-                    "query_timestamp": row["query_timestamp"],
+                    "query_timestamp": convert_utc_to_utc7(row["query_timestamp"]),
                     "answer_id": row["answer_id"],
                     "faq_id": row["faq_id"],
                     "similarity_score": row["similarity_score"],
                     "answer_shown": row["answer_shown"],
-                    "answer_timestamp": row["answer_timestamp"],
+                    "answer_timestamp": convert_utc_to_utc7(row["answer_timestamp"]),
                     "rating": row["rating"],
-                    "rating_timestamp": row["rating_timestamp"],
+                    "rating_timestamp": convert_utc_to_utc7(row["rating_timestamp"]),
                     "category": row["category"],
                     "faq_question": row["faq_question"]
                 })
@@ -567,6 +609,16 @@ def get_statistics() -> Dict:
                 stats["helpful_percentage"] = round((stats["helpful_count"] / total_ratings) * 100, 2)
             else:
                 stats["helpful_percentage"] = 0
+
+            # Запросы без ответа (faq_id IS NULL или совпадение < порога)
+            # Считаем уникальные запросы, а не записи в answer_logs
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT ql.id) as total
+                FROM query_logs ql
+                LEFT JOIN answer_logs al ON ql.id = al.query_log_id
+                WHERE al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD}
+            """)
+            stats["no_answer_count"] = cursor.fetchone()["total"]
 
             # Топ-3 самых частых вопроса
             cursor.execute("""

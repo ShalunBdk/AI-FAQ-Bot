@@ -13,6 +13,10 @@ import signal
 import requests
 from io import BytesIO, TextIOWrapper
 import csv
+from dotenv import load_dotenv
+
+# Загружаем переменные окружения
+load_dotenv()
 
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
@@ -22,7 +26,8 @@ from chromadb.utils import embedding_functions
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
-logging.basicConfig(level=logging.INFO)
+import logging_config
+logging_config.configure_root_logger(level=logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
@@ -458,6 +463,7 @@ def get_logs():
     - date_from: начальная дата (ISO format)
     - date_to: конечная дата (ISO format)
     - search: поиск по тексту запроса
+    - no_answer: показывать только запросы без ответа (true/false)
     """
     try:
         # Параметры пагинации
@@ -475,6 +481,7 @@ def get_logs():
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         search_text = request.args.get('search')
+        no_answer = request.args.get('no_answer', 'false').lower() == 'true'
 
         # Получаем логи
         logs, total = database.get_logs(
@@ -485,7 +492,8 @@ def get_logs():
             rating_filter=rating,
             date_from=date_from,
             date_to=date_to,
-            search_text=search_text
+            search_text=search_text,
+            no_answer=no_answer
         )
 
         # Вычисляем метаданные пагинации
@@ -512,6 +520,8 @@ def get_logs_statistics():
     """Получить статистику по логам"""
     try:
         stats = database.get_statistics()
+        # Добавляем текущий порог схожести
+        stats["similarity_threshold"] = database.SIMILARITY_THRESHOLD
         return jsonify({
             "success": True,
             "statistics": stats
@@ -539,6 +549,7 @@ def export_logs():
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         search_text = request.args.get('search')
+        no_answer = request.args.get('no_answer', 'false').lower() == 'true'
 
         # Получаем все логи
         logs, total = database.get_logs(
@@ -549,7 +560,8 @@ def export_logs():
             rating_filter=rating,
             date_from=date_from,
             date_to=date_to,
-            search_text=search_text
+            search_text=search_text,
+            no_answer=no_answer
         )
 
         # Создаем CSV в памяти
@@ -573,8 +585,15 @@ def export_logs():
 
         # Данные
         for log in logs:
+            # Время уже конвертировано в UTC+7 функцией database.get_logs()
             query_timestamp = log.get('query_timestamp', '')
+            if query_timestamp:
+                query_timestamp = query_timestamp + ' UTC+7'
+
             rating_timestamp = log.get('rating_timestamp', '')
+            if rating_timestamp:
+                rating_timestamp = rating_timestamp + ' UTC+7'
+
             user_id_val = log.get('user_id')
             similarity = round(log.get('similarity_score', 0), 1) if log.get('similarity_score') is not None else ''
             rating_val = log.get('rating', '')
