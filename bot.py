@@ -660,8 +660,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     elif data == "back_to_cats":
+        # Удаляем кнопки из исходного сообщения
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+        # Отправляем новое сообщение с категориями
         await safe_send_message(
-            query.edit_message_text,
+            query.message.reply_text,
             "📚 <b>Выберите категорию:</b>",
             reply_markup=get_categories_keyboard(),
             parse_mode='HTML',
