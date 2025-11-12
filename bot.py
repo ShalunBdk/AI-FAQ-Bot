@@ -6,6 +6,8 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.error import TimedOut, NetworkError, TelegramError, RetryAfter
+import httpx
+import httpcore
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.utils import embedding_functions
@@ -96,7 +98,31 @@ async def safe_send_message(func, *args, max_retries=3, user_id=None, **kwargs):
 
             # Не переповторяем, просто возвращаем None
             return None
-        except TimedOut as e:
+        except (httpx.RemoteProtocolError, httpcore.RemoteProtocolError) as e:
+            # Сервер разорвал соединение
+            if record_timeout_error():
+                return None
+
+            wait_time = (attempt + 1) * 2
+            logger.warning(f"Сервер разорвал соединение (попытка {attempt + 1}/{max_retries}). Ожидание {wait_time}с...")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"Соединение разорвано после {max_retries} попыток: {e}")
+                return None
+        except (httpx.ConnectError, httpcore.ConnectError) as e:
+            # Ошибка подключения
+            if record_timeout_error():
+                return None
+
+            wait_time = (attempt + 1) * 2
+            logger.warning(f"Ошибка подключения (попытка {attempt + 1}/{max_retries}). Ожидание {wait_time}с...")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"Не удалось подключиться после {max_retries} попыток: {e}")
+                return None
+        except (httpx.ReadTimeout, httpcore.ReadTimeout, TimedOut) as e:
             # Записываем ошибку таймаута
             if record_timeout_error():
                 # Бот ушел в сон, прекращаем попытки
@@ -127,7 +153,7 @@ async def safe_send_message(func, *args, max_retries=3, user_id=None, **kwargs):
             logger.error(f"Telegram API ошибка: {e}")
             return None
         except Exception as e:
-            logger.error(f"Неожиданная ошибка при отправке сообщения: {e}")
+            logger.error(f"Неожиданная ошибка при отправке сообщения: {e}", exc_info=True)
             return None
     return None
 
@@ -731,30 +757,68 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------- ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОШИБОК ----------
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Глобальный обработчик ошибок для бота"""
-    logger.error("Исключение при обработке обновления:", exc_info=context.error)
+    error = context.error
 
-    # Если это rate limit - обрабатываем на уровне пользователя
-    if isinstance(context.error, RetryAfter):
-        retry_after = context.error.retry_after
+    # Проверяем тип ошибки для более детального логирования
+    if isinstance(error, RetryAfter):
+        # Rate limit от Telegram - обрабатываем на уровне пользователя
+        retry_after = error.retry_after
         if isinstance(update, Update) and update.effective_user:
             user_id = update.effective_user.id
             put_user_in_cooldown(user_id, duration=int(retry_after) + 5)
-            logger.warning(f"Rate limit для пользователя {user_id}: retry_after={retry_after}с")
+            logger.warning(f"⏱️ Rate limit для пользователя {user_id}: retry_after={retry_after}с")
+        else:
+            logger.warning(f"⏱️ Rate limit (глобальный): retry_after={retry_after}с")
         return
 
-    # Если это ошибка таймаута или сетевая ошибка
-    if isinstance(context.error, (TimedOut, NetworkError)):
+    # Обработка ошибок подключения (RemoteProtocolError, ConnectionError и т.д.)
+    if isinstance(error, (httpx.RemoteProtocolError, httpcore.RemoteProtocolError)):
+        logger.warning(f"⚠️ Сервер Telegram разорвал соединение: {error}")
         if record_timeout_error():
-            logger.warning("Бот переведен в режим сна из-за множественных ошибок")
+            logger.warning("🛌 Бот переведен в режим сна из-за проблем с соединением")
         return
 
-    # Пытаемся уведомить пользователя об ошибке
+    if isinstance(error, (httpx.ConnectError, httpcore.ConnectError)):
+        logger.warning(f"⚠️ Не удалось подключиться к серверу Telegram: {error}")
+        if record_timeout_error():
+            logger.warning("🛌 Бот переведен в режим сна из-за проблем с подключением")
+        return
+
+    if isinstance(error, (httpx.ReadTimeout, httpcore.ReadTimeout)):
+        logger.warning(f"⚠️ Таймаут чтения от сервера Telegram: {error}")
+        if record_timeout_error():
+            logger.warning("🛌 Бот переведен в режим сна из-за таймаутов")
+        return
+
+    # Если это ошибка таймаута или общая сетевая ошибка
+    if isinstance(error, TimedOut):
+        logger.warning(f"⏰ Таймаут при обращении к Telegram API: {error}")
+        if record_timeout_error():
+            logger.warning("🛌 Бот переведен в режим сна из-за множественных таймаутов")
+        return
+
+    if isinstance(error, NetworkError):
+        logger.warning(f"🌐 Сетевая ошибка при обращении к Telegram API: {error}")
+        if record_timeout_error():
+            logger.warning("🛌 Бот переведен в режим сна из-за сетевых проблем")
+        return
+
+    # Другие ошибки Telegram API
+    if isinstance(error, TelegramError):
+        logger.error(f"❌ Telegram API ошибка: {error}", exc_info=error)
+        # Не отправляем бота в сон для других ошибок API
+    else:
+        # Неожиданная ошибка - логируем с полным стектрейсом
+        logger.error("❌ Неожиданное исключение при обработке обновления:", exc_info=error)
+
+    # Пытаемся уведомить пользователя об ошибке (только если это не сетевая проблема)
     if isinstance(update, Update) and update.effective_message:
         try:
             await update.effective_message.reply_text(
                 "⚠️ Произошла ошибка. Пожалуйста, попробуйте позже."
             )
         except Exception:
+            # Если не удалось отправить сообщение, просто игнорируем
             pass
 
 # ---------- ВСПОМОГАТЕЛЬНЫЕ ----------
@@ -784,14 +848,18 @@ def main():
     flask_thread.start()
     print(f"🔄 Сервер перезагрузки запущен на http://127.0.0.1:{RELOAD_SERVER_PORT}")
     
-    # Запускаем бота с увеличенными таймаутами
+    # Запускаем бота с увеличенными таймаутами и улучшенной обработкой ошибок
     app = (
         Application.builder()
         .token(TELEGRAM_TOKEN)
-        .connect_timeout(30.0)  # Таймаут подключения: 30 секунд
-        .read_timeout(30.0)     # Таймаут чтения: 30 секунд
-        .write_timeout(30.0)    # Таймаут записи: 30 секунд
-        .pool_timeout(30.0)     # Таймаут pool: 30 секунд
+        .connect_timeout(30.0)      # Таймаут подключения: 30 секунд
+        .read_timeout(60.0)         # Таймаут чтения: 60 секунд (для long polling)
+        .write_timeout(30.0)        # Таймаут записи: 30 секунд
+        .pool_timeout(30.0)         # Таймаут pool: 30 секунд
+        .get_updates_connect_timeout(60.0)  # Таймаут для getUpdates (long polling)
+        .get_updates_read_timeout(60.0)     # Таймаут чтения для getUpdates
+        .get_updates_write_timeout(30.0)    # Таймаут записи для getUpdates
+        .get_updates_pool_timeout(30.0)     # Таймаут pool для getUpdates
         .build()
     )
 
