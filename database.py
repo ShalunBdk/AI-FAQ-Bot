@@ -380,21 +380,22 @@ def reset_bot_settings() -> bool:
 
 # ========== ЛОГИРОВАНИЕ ВЗАИМОДЕЙСТВИЙ ==========
 
-def add_query_log(user_id: int, username: str, query_text: str) -> Optional[int]:
+def add_query_log(user_id: int, username: str, query_text: str, platform: str = 'telegram') -> Optional[int]:
     """
     Логировать запрос пользователя
 
-    :param user_id: ID пользователя Telegram
+    :param user_id: ID пользователя
     :param username: Имя пользователя
     :param query_text: Текст запроса
+    :param platform: Платформа ('telegram' или 'bitrix24')
     :return: ID созданного лога или None при ошибке
     """
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO query_logs (user_id, username, query_text) VALUES (?, ?, ?)",
-                (user_id, username, query_text)
+                "INSERT INTO query_logs (user_id, username, query_text, platform) VALUES (?, ?, ?, ?)",
+                (user_id, username, query_text, platform)
             )
             return cursor.lastrowid
     except Exception as e:
@@ -456,7 +457,8 @@ def get_logs(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     search_text: Optional[str] = None,
-    no_answer: bool = False
+    no_answer: bool = False,
+    platform: Optional[str] = None
 ) -> tuple[List[Dict], int]:
     """
     Получить логи с фильтрацией и пагинацией
@@ -470,6 +472,7 @@ def get_logs(
     :param date_to: Конечная дата (ISO format)
     :param search_text: Поиск по тексту запроса
     :param no_answer: Показывать только запросы без ответа (faq_id IS NULL или совпадение < SIMILARITY_THRESHOLD)
+    :param platform: Фильтр по платформе ('telegram' или 'bitrix24')
     :return: (список логов, общее количество записей)
     """
     try:
@@ -483,6 +486,7 @@ def get_logs(
                     ql.user_id,
                     ql.username,
                     ql.query_text,
+                    ql.platform,
                     ql.timestamp as query_timestamp,
                     al.id as answer_id,
                     al.faq_id,
@@ -534,6 +538,10 @@ def get_logs(
                 # Показываем только запросы где не нашелся ответ (faq_id IS NULL или совпадение < порога)
                 query += f" AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})"
 
+            if platform:
+                query += " AND ql.platform = ?"
+                params.append(platform)
+
             # Подсчет общего количества
             count_query = f"SELECT COUNT(*) as total FROM ({query})"
             cursor.execute(count_query, params)
@@ -553,6 +561,7 @@ def get_logs(
                     "user_id": row["user_id"],
                     "username": row["username"],
                     "query_text": row["query_text"],
+                    "platform": row["platform"],
                     "query_timestamp": convert_utc_to_utc7(row["query_timestamp"]),
                     "answer_id": row["answer_id"],
                     "faq_id": row["faq_id"],

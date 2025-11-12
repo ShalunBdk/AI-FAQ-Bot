@@ -274,6 +274,25 @@
             color: #383d41;
         }
 
+        /* Стили для платформы */
+        .platform-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        .platform-telegram {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .platform-bitrix24 {
+            background: #fff3cd;
+            color: #856404;
+        }
+
         .similarity-score {
             font-weight: 600;
         }
@@ -421,6 +440,14 @@
                     </select>
                 </div>
                 <div class="filter-group">
+                    <label for="filter-platform">Платформа</label>
+                    <select id="filter-platform" onchange="applyFilters()">
+                        <option value="">Все</option>
+                        <option value="telegram">✈️ Telegram</option>
+                        <option value="bitrix24">💼 Bitrix24</option>
+                    </select>
+                </div>
+                <div class="filter-group">
                     <label for="filter-date-from">Дата от</label>
                     <input type="date" id="filter-date-from" onchange="applyFilters()">
                 </div>
@@ -459,6 +486,7 @@
                         <tr>
                             <th>Дата/Время</th>
                             <th>Пользователь</th>
+                            <th>Платформа</th>
                             <th>Запрос</th>
                             <th>FAQ</th>
                             <th>Схожесть</th>
@@ -578,11 +606,20 @@
                     ratingHTML = '<span class="rating-badge rating-not-helpful">👎 Не помогло</span>';
                 }
 
+                // Платформа
+                const platform = log.platform || 'telegram';
+                const platformIcon = platform === 'bitrix24' ? '💼' : '✈️';
+                const platformText = platform === 'bitrix24' ? 'Bitrix24' : 'Telegram';
+                const platformClass = platform === 'bitrix24' ? 'platform-bitrix24' : 'platform-telegram';
+
                 row.innerHTML = `
                     <td>${dateStr}</td>
                     <td>
                         <div>${log.username || 'N/A'}</div>
                         <small style="color: #999;">ID: ${log.user_id}</small>
+                    </td>
+                    <td>
+                        <span class="platform-badge ${platformClass}">${platformIcon} ${platformText}</span>
                     </td>
                     <td>
                         <div class="truncate" title="${log.query_text}">
@@ -648,6 +685,9 @@
             const rating = document.getElementById('filter-rating').value;
             if (rating) currentFilters.rating = rating;
 
+            const platform = document.getElementById('filter-platform').value;
+            if (platform) currentFilters.platform = platform;
+
             const dateFrom = document.getElementById('filter-date-from').value;
             if (dateFrom) currentFilters.date_from = dateFrom;
 
@@ -665,6 +705,7 @@
         function resetFilters() {
             document.getElementById('filter-search').value = '';
             document.getElementById('filter-rating').value = '';
+            document.getElementById('filter-platform').value = '';
             document.getElementById('filter-date-from').value = '';
             document.getElementById('filter-date-to').value = '';
             document.getElementById('filter-no-answer').checked = false;

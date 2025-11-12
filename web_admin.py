@@ -33,8 +33,16 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация
 MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
-BOT_RELOAD_URL = "http://127.0.0.1:5001/reload"  # Эндпоинт бота для перезагрузки коллекции
-BOT_RELOAD_SETTINGS_URL = "http://127.0.0.1:5001/reload-settings"  # Эндпоинт бота для перезагрузки настроек
+
+# Эндпоинты для уведомления ботов
+TELEGRAM_BOT_RELOAD_URL = "http://127.0.0.1:5001/reload"  # Telegram бот
+TELEGRAM_BOT_RELOAD_SETTINGS_URL = "http://127.0.0.1:5001/reload-settings"
+
+BITRIX24_BOT_RELOAD_URL = "http://127.0.0.1:5002/api/reload-chromadb"  # Bitrix24 бот
+
+# Список всех ботов для уведомления
+ALL_BOT_RELOAD_URLS = [TELEGRAM_BOT_RELOAD_URL, BITRIX24_BOT_RELOAD_URL]
+ALL_BOT_RELOAD_SETTINGS_URLS = [TELEGRAM_BOT_RELOAD_SETTINGS_URL]
 
 # Инициализация ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -96,34 +104,36 @@ def retrain_chromadb():
 
 def notify_bot_reload():
     """
-    Отправляет запрос боту на перезагрузку коллекции
+    Отправляет запрос всем ботам на перезагрузку коллекции
     """
-    try:
-        response = requests.post(BOT_RELOAD_URL, timeout=2)
-        if response.status_code == 200:
-            logger.info("✅ Бот уведомлен о перезагрузке коллекции")
-        else:
-            logger.warning(f"⚠️ Бот ответил с кодом {response.status_code}")
-    except requests.exceptions.ConnectionError:
-        logger.warning("⚠️ Не удалось связаться с ботом (возможно, он не запущен)")
-    except Exception as e:
-        logger.error(f"❌ Ошибка при уведомлении бота: {e}")
+    for url in ALL_BOT_RELOAD_URLS:
+        try:
+            response = requests.post(url, timeout=2)
+            if response.status_code == 200:
+                logger.info(f"✅ Бот ({url}) уведомлен о перезагрузке коллекции")
+            else:
+                logger.warning(f"⚠️ Бот ({url}) ответил с кодом {response.status_code}")
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"⚠️ Не удалось связаться с ботом ({url}) (возможно, он не запущен)")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при уведомлении бота ({url}): {e}")
 
 
 def notify_bot_reload_settings():
     """
-    Отправляет запрос боту на перезагрузку настроек
+    Отправляет запрос всем ботам на перезагрузку настроек
     """
-    try:
-        response = requests.post(BOT_RELOAD_SETTINGS_URL, timeout=2)
-        if response.status_code == 200:
-            logger.info("✅ Бот уведомлен о перезагрузке настроек")
-        else:
-            logger.warning(f"⚠️ Бот ответил с кодом {response.status_code}")
-    except requests.exceptions.ConnectionError:
-        logger.warning("⚠️ Не удалось связаться с ботом (возможно, он не запущен)")
-    except Exception as e:
-        logger.error(f"❌ Ошибка при уведомлении бота: {e}")
+    for url in ALL_BOT_RELOAD_SETTINGS_URLS:
+        try:
+            response = requests.post(url, timeout=2)
+            if response.status_code == 200:
+                logger.info(f"✅ Бот ({url}) уведомлен о перезагрузке настроек")
+            else:
+                logger.warning(f"⚠️ Бот ({url}) ответил с кодом {response.status_code}")
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"⚠️ Не удалось связаться с ботом ({url}) (возможно, он не запущен)")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при уведомлении бота ({url}): {e}")
 
 
 # ========== WEB ROUTES ==========
@@ -464,6 +474,7 @@ def get_logs():
     - date_to: конечная дата (ISO format)
     - search: поиск по тексту запроса
     - no_answer: показывать только запросы без ответа (true/false)
+    - platform: фильтр по платформе (telegram, bitrix24)
     """
     try:
         # Параметры пагинации
@@ -482,6 +493,7 @@ def get_logs():
         date_to = request.args.get('date_to')
         search_text = request.args.get('search')
         no_answer = request.args.get('no_answer', 'false').lower() == 'true'
+        platform = request.args.get('platform')
 
         # Получаем логи
         logs, total = database.get_logs(
@@ -493,7 +505,8 @@ def get_logs():
             date_from=date_from,
             date_to=date_to,
             search_text=search_text,
-            no_answer=no_answer
+            no_answer=no_answer,
+            platform=platform
         )
 
         # Вычисляем метаданные пагинации
