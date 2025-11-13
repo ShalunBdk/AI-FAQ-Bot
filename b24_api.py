@@ -469,9 +469,15 @@ class Bitrix24Event:
     @property
     def message_text(self) -> Optional[str]:
         """Текст сообщения от пользователя"""
-        if self.is_message:
-            return self.data.get('PARAMS', {}).get('MESSAGE')
-        return None
+        # Возвращаем текст из PARAMS если он есть (работает для сообщений и команд)
+        return self.data.get('PARAMS', {}).get('MESSAGE')
+
+    @message_text.setter
+    def message_text(self, value: str):
+        """Устанавливает текст сообщения (для подмены при обработке команд)"""
+        if 'PARAMS' not in self.data:
+            self.data['PARAMS'] = {}
+        self.data['PARAMS']['MESSAGE'] = value
 
     @property
     def command_data(self) -> Optional[Dict]:
@@ -504,14 +510,9 @@ class Bitrix24Event:
     @property
     def user_id(self) -> Optional[int]:
         """ID пользователя"""
-        if self.is_message or self.is_join_chat:
+        if self.is_message or self.is_join_chat or self.is_command:
+            # Для всех типов событий (включая команды) user_id находится в PARAMS
             user_id_str = self.data.get('PARAMS', {}).get('FROM_USER_ID', 0)
-            try:
-                return int(user_id_str)
-            except (ValueError, TypeError):
-                return 0
-        elif self.is_command:
-            user_id_str = self.data.get('COMMAND', {}).get('USER_ID', 0)
             try:
                 return int(user_id_str)
             except (ValueError, TypeError):
@@ -521,10 +522,9 @@ class Bitrix24Event:
     @property
     def dialog_id(self) -> Optional[str]:
         """ID диалога"""
-        if self.is_message or self.is_join_chat:
+        if self.is_message or self.is_join_chat or self.is_command:
+            # Для всех типов событий (включая команды) dialog_id находится в PARAMS
             return str(self.data.get('PARAMS', {}).get('DIALOG_ID', ''))
-        elif self.is_command:
-            return str(self.data.get('COMMAND', {}).get('DIALOG_ID', ''))
         return None
 
     @property

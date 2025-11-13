@@ -181,12 +181,13 @@ def register_bot_commands(api: Bitrix24API):
             logger.warning("⚠️ Или запустите: python register_bot.py для регистрации бота")
             return
 
-        # Регистрируем команды для обратной связи
+        # Регистрируем команды для обратной связи и похожих вопросов
         # Используем шаблоны без ID - Bitrix24 будет принимать любые суффиксы
         commands = [
             ('helpful_yes', 'Полезно'),
             ('helpful_no', 'Не помогло'),
             ('cat', 'Выбор категории'),
+            ('similar_question', 'Похожий вопрос'),
         ]
 
         for command, title in commands:
@@ -299,23 +300,33 @@ def handle_category_select(event: Bitrix24Event, api: Bitrix24API, category: str
     logger.info(f"Отправлена категория '{category}' пользователю {event.user_id}")
 
 
-def handle_search_faq(event: Bitrix24Event, api: Bitrix24API):
-    """Поиск ответа на вопрос пользователя"""
+def handle_search_faq(event: Bitrix24Event, api: Bitrix24API, is_faq_view: bool = False):
+    """
+    Поиск ответа на вопрос пользователя
+
+    Args:
+        event: Событие от Bitrix24
+        api: API клиент
+        is_faq_view: True если это просмотр FAQ через кнопку (добавляет префикс в логи)
+    """
     query_text = event.message_text
     user_id = event.user_id
 
     # Показываем индикатор печатания
     api.send_typing(event.dialog_id)
 
+    # Текст для логирования (с префиксом если это просмотр FAQ)
+    log_query_text = f"[Просмотр FAQ] {query_text}" if is_faq_view else query_text
+
     # Логирование запроса
     query_log_id = database.add_query_log(
         user_id=user_id,
         username=f'b24_user_{user_id}',
-        query_text=query_text,
+        query_text=log_query_text,
         platform='bitrix24'
     )
 
-    # Поиск в ChromaDB
+    # Поиск в ChromaDB (по оригинальному тексту без префикса)
     best_match, similarity, all_results = find_best_match(query_text, n_results=3)
 
 
@@ -334,6 +345,12 @@ def handle_search_faq(event: Bitrix24Event, api: Bitrix24API):
     else:
         # Ответ не найден
         send_no_answer(event, api, similarity, all_results)
+        database.add_answer_log(
+            query_log_id=query_log_id,
+            faq_id=None,
+            similarity_score=similarity,
+            answer_shown="Ответ не найден"
+        )
 
 
 def send_answer(event: Bitrix24Event, api: Bitrix24API, match: Dict,
@@ -368,21 +385,29 @@ def send_answer(event: Bitrix24Event, api: Bitrix24API, match: Dict,
         }
     ]]
 
-    keyboard = api.create_keyboard(feedback_buttons)
-
-    # Похожие вопросы (если есть)
-    similar_questions = []
+    # Похожие вопросы (если есть) - добавляем как кнопки
+    similar_questions_buttons = []
     if all_results and len(all_results.get('metadatas', [[]])[0]) > 1:
         for i in range(1, min(4, len(all_results['metadatas'][0]))):
             sim = (1.0 - all_results['distances'][0][i]) * 100.0
             if sim >= 30:  # Показываем только если similarity > 30%
                 meta = all_results['metadatas'][0][i]
-                similar_questions.append(f"• {meta['question']} ({sim:.0f}%)")
+                question_text = meta['question']
+                # Обрезаем текст кнопки если слишком длинный
+                button_text = question_text if len(question_text) <= 60 else question_text[:57] + "..."
+                similar_questions_buttons.append([{
+                    'text': f"❓ {button_text}",
+                    'action': 'similar_question',
+                    'params': question_text  # Полный текст вопроса в параметрах
+                }])
 
-    # Добавляем похожие вопросы к сообщению, а не в attach
-    if similar_questions:
-        message += "\n\n📌 Возможно, вас также интересует:\n" + "\n".join(similar_questions)
+    # Объединяем кнопки: сначала feedback, потом похожие вопросы
+    all_buttons = feedback_buttons
+    if similar_questions_buttons:
+        all_buttons.extend(similar_questions_buttons)
+        message += "\n\n📌 Возможно, вас также интересует:"
 
+    keyboard = api.create_keyboard(all_buttons)
     attach = None  # Пока не используем attach
 
     # Отправка
@@ -401,18 +426,28 @@ def send_no_answer(event: Bitrix24Event, api: Bitrix24API,
         f"• Написать 'категории' для просмотра всех тем"
     )
 
-    # Показываем похожие вопросы если есть
-    similar_questions = []
+    # Показываем похожие вопросы как кнопки
+    similar_questions_buttons = []
     if all_results and all_results.get('metadatas') and all_results['metadatas'][0]:
         for i in range(min(3, len(all_results['metadatas'][0]))):
             sim = (1.0 - all_results['distances'][0][i]) * 100.0
             meta = all_results['metadatas'][0][i]
-            similar_questions.append(f"• {meta['question']} ({sim:.0f}%)")
+            question_text = meta['question']
+            # Обрезаем текст кнопки если слишком длинный
+            button_text = question_text if len(question_text) <= 60 else question_text[:57] + "..."
+            similar_questions_buttons.append([{
+                'text': f"❓ {button_text}",
+                'action': 'similar_question',
+                'params': question_text  # Полный текст вопроса в параметрах
+            }])
 
-    if similar_questions:
-        message += "\n\n💡 Возможно, вам помогут эти вопросы:\n" + "\n".join(similar_questions)
+    if similar_questions_buttons:
+        message += "\n\n💡 Возможно, вам помогут эти вопросы:"
+        keyboard = api.create_keyboard(similar_questions_buttons)
+        api.send_message(event.dialog_id, message, keyboard=keyboard)
+    else:
+        api.send_message(event.dialog_id, message)
 
-    api.send_message(event.dialog_id, message)
     logger.info(f"Отправлено 'не найдено' пользователю {event.user_id}, similarity={similarity:.1f}%")
 
 
@@ -622,6 +657,17 @@ def handle_command_event(event: Bitrix24Event, api: Bitrix24API):
                 logger.error(f"⚠️ Нет answer_log_id в параметрах команды")
         except (ValueError, TypeError):
             logger.error(f"Ошибка парсинга answer_log_id из params: {params}")
+    # Нажатие на похожий вопрос
+    elif command_lower == 'similar_question':
+        if params:
+            # Создаем новый event с текстом вопроса и вызываем поиск
+            logger.info(f"🔍 Поиск по похожему вопросу: {params}")
+            event.message_text = params  # Подменяем текст сообщения на вопрос из кнопки
+            # Передаем is_faq_view=True для добавления префикса в логи
+            handle_search_faq(event, api, is_faq_view=True)
+            # answer_command не нужен - ответ уже отправлен через handle_search_faq
+        else:
+            logger.error(f"⚠️ Нет текста вопроса в параметрах команды similar_question")
     else:
         logger.warning(f"⚠️ Неизвестная команда: {command_lower}")
 
