@@ -533,6 +533,32 @@ class Bitrix24Event:
         return self.auth.get('domain', '')
 
     @property
+    def first_name(self) -> Optional[str]:
+        """Имя пользователя"""
+        return self.data.get('USER', {}).get('FIRST_NAME')
+
+    @property
+    def last_name(self) -> Optional[str]:
+        """Фамилия пользователя"""
+        return self.data.get('USER', {}).get('LAST_NAME')
+
+    @property
+    def username(self) -> str:
+        """Полное имя пользователя (Фамилия Имя)"""
+        first_name = self.first_name or ''
+        last_name = self.last_name or ''
+
+        if last_name and first_name:
+            return f"{last_name} {first_name}"
+        elif first_name:
+            return first_name
+        elif last_name:
+            return last_name
+        else:
+            # Fallback на b24_user_ID если имени нет
+            return f"b24_user_{self.user_id}" if self.user_id else "Неизвестный пользователь"
+
+    @property
     def application_token(self) -> str:
         """Токен приложения"""
         return self.auth.get('application_token', '')

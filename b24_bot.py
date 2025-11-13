@@ -321,7 +321,7 @@ def handle_search_faq(event: Bitrix24Event, api: Bitrix24API, is_faq_view: bool 
     # Логирование запроса
     query_log_id = database.add_query_log(
         user_id=user_id,
-        username=f'b24_user_{user_id}',
+        username=event.username,  # Используем полное имя пользователя (Фамилия Имя)
         query_text=log_query_text,
         platform='bitrix24'
     )
