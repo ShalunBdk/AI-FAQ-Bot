@@ -5,21 +5,26 @@ FAQ Бот для Bitrix24
 
 import logging
 import os
+import sys
 import json
 from typing import Dict, List, Optional, Tuple
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 import chromadb
 from chromadb.utils import embedding_functions
-import database
-from b24_api import Bitrix24API, Bitrix24Event
+
+# Добавляем корневую директорию проекта в PYTHONPATH
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from src.core import database
+from src.core import logging_config
+from src.api.b24_api import Bitrix24API, Bitrix24Event
 
 # Загрузка конфигурации
 load_dotenv()
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 # Настройка логирования (DEBUG для детальной диагностики)
-import logging_config
 logging_config.configure_root_logger(level=logging.DEBUG)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)

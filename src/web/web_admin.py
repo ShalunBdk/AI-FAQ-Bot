@@ -5,8 +5,7 @@ Flask веб-приложение для управления FAQ и перео�
 
 from flask import Flask, Blueprint, render_template, request, jsonify, redirect, url_for, make_response
 import uuid
-import database
-from chromadb.utils import embedding_functions
+import sys
 import logging
 import os
 import signal
@@ -14,6 +13,12 @@ import requests
 from io import BytesIO, TextIOWrapper
 import csv
 from dotenv import load_dotenv
+
+# Добавляем корневую директорию проекта в PYTHONPATH
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from src.core import database
+from src.core import logging_config
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -26,7 +31,6 @@ from chromadb.utils import embedding_functions
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
-import logging_config
 logging_config.configure_root_logger(level=logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)

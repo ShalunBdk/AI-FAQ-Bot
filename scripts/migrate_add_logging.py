@@ -4,8 +4,14 @@
 Скрипт миграции для добавления таблиц логирования
 """
 
+import sys
+import os
 import sqlite3
-from database import DB_FILE
+
+# Добавляем корневую директорию проекта в PYTHONPATH
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.core.database import DB_FILE
 
 
 def migrate():

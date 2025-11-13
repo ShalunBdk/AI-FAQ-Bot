@@ -4,8 +4,14 @@
 Скрипт для миграции данных из demo_faq.py в базу данных
 """
 
-from database import init_database, migrate_from_demo_faq, get_all_faqs
-from demo_faq import DEMO_FAQ
+import sys
+import os
+
+# Добавляем корневую директорию проекта в PYTHONPATH
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.core.database import init_database, migrate_from_demo_faq, get_all_faqs
+from scripts.demo_faq import DEMO_FAQ
 
 
 def main():

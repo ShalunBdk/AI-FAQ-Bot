@@ -13,10 +13,16 @@ import chromadb
 from chromadb.utils import embedding_functions
 from flask import Flask, request, jsonify
 import threading
-import database
+import sys
 import os
 import asyncio
 from dotenv import load_dotenv
+
+# Добавляем корневую директорию проекта в PYTHONPATH
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from src.core import database
+from src.core import logging_config
 
 # Загружаем переменные окружения из .env
 load_dotenv()
@@ -24,7 +30,6 @@ load_dotenv()
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 # ---------- ЛОГИРОВАНИЕ ----------
-import logging_config
 logging_config.configure_root_logger(level=logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)

@@ -4,8 +4,13 @@
 """
 
 import os
+import sys
 from dotenv import load_dotenv
-from b24_api import Bitrix24API
+
+# Добавляем корневую директорию проекта в PYTHONPATH
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.api.b24_api import Bitrix24API
 
 load_dotenv()
 

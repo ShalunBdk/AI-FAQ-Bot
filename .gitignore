@@ -41,3 +41,16 @@ Thumbs.db
 *.tmp
 *.bak
 *.backup
+
+# Backups
+backups/
+*.tar.gz
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Nginx
+nginx/logs/
+nginx/ssl/
+nginx/certbot-data/
