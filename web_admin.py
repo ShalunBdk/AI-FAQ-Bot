@@ -3,7 +3,7 @@
 Flask веб-приложение для управления FAQ и переобучения ChromaDB
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response
+from flask import Flask, Blueprint, render_template, request, jsonify, redirect, url_for, make_response
 import uuid
 import database
 from chromadb.utils import embedding_functions
@@ -47,6 +47,9 @@ ALL_BOT_RELOAD_SETTINGS_URLS = [TELEGRAM_BOT_RELOAD_SETTINGS_URL]
 # Инициализация ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL_NAME)
+
+# Создаем Blueprint для админ-панели
+admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
 def retrain_chromadb():
@@ -136,16 +139,16 @@ def notify_bot_reload_settings():
             logger.error(f"❌ Ошибка при уведомлении бота ({url}): {e}")
 
 
-# ========== WEB ROUTES ==========
+# ========== ADMIN ROUTES ==========
 
-@app.route('/')
+@admin_bp.route('/')
 def index():
-    """Главная страница - список всех FAQ"""
+    """Главная страница админки - список всех FAQ"""
     categories = database.get_all_categories()
-    return render_template('index.html', categories=categories)
+    return render_template('admin/index.html', categories=categories)
 
 
-@app.route('/faq/list')
+@admin_bp.route('/faq/list')
 def list_faqs():
     """Получить список FAQ (опционально по категории)"""
     category = request.args.get('category')
@@ -156,7 +159,7 @@ def list_faqs():
     return jsonify(faqs)
 
 
-@app.route('/faq/<faq_id>')
+@admin_bp.route('/faq/<faq_id>')
 def get_faq(faq_id):
     """Получить конкретный FAQ"""
     faq = database.get_faq_by_id(faq_id)
@@ -165,7 +168,7 @@ def get_faq(faq_id):
     return jsonify({"error": "FAQ не найден"}), 404
 
 
-@app.route('/faq/add', methods=['POST'])
+@admin_bp.route('/faq/add', methods=['POST'])
 def add_faq():
     """Добавить новый FAQ"""
     data = request.json
@@ -188,7 +191,7 @@ def add_faq():
     return jsonify({"success": False, "message": "FAQ с таким ID уже существует"}), 400
 
 
-@app.route('/faq/update/<faq_id>', methods=['PUT'])
+@admin_bp.route('/faq/update/<faq_id>', methods=['PUT'])
 def update_faq(faq_id):
     """Обновить существующий FAQ"""
     data = request.json
@@ -209,7 +212,7 @@ def update_faq(faq_id):
     return jsonify({"success": False, "message": "FAQ не найден"}), 404
 
 
-@app.route('/faq/delete/<faq_id>', methods=['DELETE'])
+@admin_bp.route('/faq/delete/<faq_id>', methods=['DELETE'])
 def delete_faq(faq_id):
     """Удалить FAQ"""
     success = database.delete_faq(faq_id)
@@ -218,14 +221,14 @@ def delete_faq(faq_id):
     return jsonify({"success": False, "message": "FAQ не найден"}), 404
 
 
-@app.route('/categories')
+@admin_bp.route('/categories')
 def get_categories():
     """Получить список всех категорий"""
     categories = database.get_all_categories()
     return jsonify(categories)
 
 
-@app.route('/categories', methods=['POST'])
+@admin_bp.route('/categories', methods=['POST'])
 def add_category_route():
     """Добавить новую категорию"""
     data = request.get_json()
@@ -240,7 +243,7 @@ def add_category_route():
         return jsonify({"error": "Такая категория уже существует"}), 409
 
 
-@app.route('/retrain', methods=['POST'])
+@admin_bp.route('/retrain', methods=['POST'])
 def retrain():
     """Переобучить ChromaDB"""
     result = retrain_chromadb()
@@ -249,7 +252,7 @@ def retrain():
     return jsonify(result), 500
 
 
-@app.route('/search', methods=['GET'])
+@admin_bp.route('/search', methods=['GET'])
 def search_faqs():
     """
     Поиск FAQ по тексту (в вопросах, ответах и ключевых словах)
@@ -306,7 +309,7 @@ def search_faqs():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/search/semantic', methods=['POST'])
+@admin_bp.route('/search/semantic', methods=['POST'])
 def semantic_search():
     """
     Семантический поиск через ChromaDB
@@ -374,13 +377,13 @@ def semantic_search():
 
 # ========== НАСТРОЙКИ БОТА ==========
 
-@app.route('/settings')
+@admin_bp.route('/settings')
 def settings_page():
     """Страница настроек бота"""
-    return render_template('settings.html')
+    return render_template('admin/settings.html')
 
 
-@app.route('/api/settings', methods=['GET'])
+@admin_bp.route('/api/settings', methods=['GET'])
 def get_settings():
     """Получить текущие настройки бота"""
     try:
@@ -394,7 +397,7 @@ def get_settings():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/api/settings', methods=['POST'])
+@admin_bp.route('/api/settings', methods=['POST'])
 def save_settings():
     """Сохранить настройки бота"""
     try:
@@ -426,7 +429,7 @@ def save_settings():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/api/settings/reset', methods=['POST'])
+@admin_bp.route('/api/settings/reset', methods=['POST'])
 def reset_settings():
     """Сбросить настройки бота к значениям по умолчанию"""
     try:
@@ -453,14 +456,14 @@ def reset_settings():
 
 # ========== ЛОГИРОВАНИЕ ==========
 
-@app.route('/logs')
+@admin_bp.route('/logs')
 def logs_page():
     """Страница просмотра логов"""
     categories = database.get_all_categories()
-    return render_template('logs.html', categories=categories)
+    return render_template('admin/logs.html', categories=categories)
 
 
-@app.route('/api/logs/list', methods=['GET'])
+@admin_bp.route('/api/logs/list', methods=['GET'])
 def get_logs():
     """
     Получить список логов с фильтрацией и пагинацией
@@ -528,7 +531,7 @@ def get_logs():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/api/logs/statistics', methods=['GET'])
+@admin_bp.route('/api/logs/statistics', methods=['GET'])
 def get_logs_statistics():
     """Получить статистику по логам"""
     try:
@@ -544,7 +547,7 @@ def get_logs_statistics():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/api/logs/export', methods=['GET'])
+@admin_bp.route('/api/logs/export', methods=['GET'])
 def export_logs():
     """
     Экспорт логов в CSV
@@ -636,6 +639,118 @@ def export_logs():
     except Exception as e:
         logger.error(f"Ошибка при экспорте логов: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ========== PUBLIC ROUTES (временные заглушки) ==========
+
+@app.route('/')
+def public_search():
+    """Публичная страница поиска"""
+    return render_template('search.html')
+
+
+@app.route('/api/search', methods=['POST'])
+def public_api_search():
+    """API для публичного семантического поиска"""
+    data = request.json
+    query = data.get('query', '').strip()
+    user_id = data.get('user_id', 0)  # Для веба используем 0 или сессионный ID
+
+    if not query:
+        return jsonify({"success": False, "message": "Не указан поисковый запрос"}), 400
+
+    try:
+        # Логируем запрос пользователя
+        query_log_id = database.add_query_log(
+            user_id=user_id,
+            username='web_user',
+            query_text=query,
+            platform='web'
+        )
+
+        # Получаем коллекцию
+        try:
+            collection = chroma_client.get_collection(name="faq_collection")
+        except Exception:
+            return jsonify({
+                "success": False,
+                "message": "База знаний не инициализирована."
+            }), 404
+
+        # Выполняем семантический поиск
+        results = collection.query(
+            query_texts=[query],
+            n_results=5,
+            include=["documents", "metadatas", "distances"]
+        )
+
+        if not results or not results["documents"] or not results["documents"][0]:
+            return jsonify({
+                "success": True,
+                "query": query,
+                "count": 0,
+                "results": []
+            })
+
+        # Формируем результаты
+        search_results = []
+        for i, metadata in enumerate(results["metadatas"][0]):
+            distance = results["distances"][0][i]
+            similarity = max(0.0, 1.0 - distance) * 100.0
+            faq_id = results["ids"][0][i] if "ids" in results and results["ids"] else None
+
+            # Применяем порог схожести
+            if similarity >= database.SIMILARITY_THRESHOLD:
+                # Логируем показанный ответ
+                answer_log_id = database.add_answer_log(
+                    query_log_id=query_log_id,
+                    faq_id=faq_id,
+                    similarity_score=similarity,
+                    answer_shown=metadata["answer"]
+                )
+
+                search_results.append({
+                    "id": faq_id,
+                    "answer_log_id": answer_log_id,  # Добавляем для обратной связи
+                    "question": metadata["question"],
+                    "answer": metadata["answer"],
+                    "category": metadata["category"],
+                    "similarity": round(similarity, 1)
+                })
+
+        return jsonify({
+            "success": True,
+            "query": query,
+            "count": len(search_results),
+            "results": search_results
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при публичном поиске: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/feedback', methods=['POST'])
+def public_feedback():
+    """API для сохранения обратной связи от пользователей"""
+    data = request.json
+    answer_log_id = data.get('answer_log_id')
+    rating = data.get('rating')  # 'helpful' или 'not_helpful'
+    user_id = data.get('user_id', 0)  # Для веб-версии можем использовать 0 или генерировать
+
+    if not answer_log_id or not rating:
+        return jsonify({"success": False, "message": "Не все поля заполнены"}), 400
+
+    try:
+        database.add_rating_log(answer_log_id, user_id, rating)
+        return jsonify({"success": True, "message": "Спасибо за обратную связь!"})
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении обратной связи: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# Регистрируем Blueprint админки
+app.register_blueprint(admin_bp)
 
 
 # ========== MAIN ==========

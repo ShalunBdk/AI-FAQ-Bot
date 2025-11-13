@@ -735,7 +735,7 @@
         // Загрузка настроек при старте
         async function loadSettings() {
             try {
-                const response = await fetch('/api/settings');
+                const response = await fetch('/admin/api/settings');
                 const data = await response.json();
 
                 if (data.success) {
@@ -840,7 +840,7 @@
             try {
                 showNotification('Сохранение настроек...', 'info');
 
-                const response = await fetch('/api/settings', {
+                const response = await fetch('/admin/api/settings', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({settings})
@@ -867,7 +867,7 @@
             try {
                 showNotification('Сброс настроек...', 'info');
 
-                const response = await fetch('/api/settings/reset', {
+                const response = await fetch('/admin/api/settings/reset', {
                     method: 'POST'
                 });
 

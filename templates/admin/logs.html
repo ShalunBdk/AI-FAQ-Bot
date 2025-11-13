@@ -293,6 +293,11 @@
             color: #856404;
         }
 
+        .platform-web {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
         .similarity-score {
             font-weight: 600;
         }
@@ -445,6 +450,7 @@
                         <option value="">Все</option>
                         <option value="telegram">✈️ Telegram</option>
                         <option value="bitrix24">💼 Bitrix24</option>
+                        <option value="web">🌐 Web</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -523,7 +529,7 @@
         // Загрузка статистики
         async function loadStatistics() {
             try {
-                const response = await fetch('/api/logs/statistics');
+                const response = await fetch('/admin/api/logs/statistics');
                 const data = await response.json();
 
                 if (data.success) {
@@ -558,7 +564,7 @@
                     ...currentFilters
                 });
 
-                const response = await fetch(`/api/logs/list?${params}`);
+                const response = await fetch(`/admin/api/logs/list?${params}`);
                 const data = await response.json();
 
                 document.getElementById('loading').style.display = 'none';
@@ -608,9 +614,21 @@
 
                 // Платформа
                 const platform = log.platform || 'telegram';
-                const platformIcon = platform === 'bitrix24' ? '💼' : '✈️';
-                const platformText = platform === 'bitrix24' ? 'Bitrix24' : 'Telegram';
-                const platformClass = platform === 'bitrix24' ? 'platform-bitrix24' : 'platform-telegram';
+                let platformIcon, platformText, platformClass;
+
+                if (platform === 'bitrix24') {
+                    platformIcon = '💼';
+                    platformText = 'Bitrix24';
+                    platformClass = 'platform-bitrix24';
+                } else if (platform === 'web') {
+                    platformIcon = '🌐';
+                    platformText = 'Web';
+                    platformClass = 'platform-web';
+                } else {
+                    platformIcon = '✈️';
+                    platformText = 'Telegram';
+                    platformClass = 'platform-telegram';
+                }
 
                 row.innerHTML = `
                     <td>${dateStr}</td>
@@ -717,7 +735,7 @@
         // Экспорт в CSV
         function exportLogs() {
             const params = new URLSearchParams(currentFilters);
-            window.location.href = `/api/logs/export?${params}`;
+            window.location.href = `/admin/api/logs/export?${params}`;
         }
 
         // Быстрый фильтр "Без ответа"

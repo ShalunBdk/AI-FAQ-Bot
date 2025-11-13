@@ -571,8 +571,8 @@
                 </div>
                 <div class="filter-right">
                     <button onclick="openAddModal()">+ Добавить FAQ</button>
-                    <button onclick="window.location.href='/logs'" class="btn-secondary">📊 Логи</button>
-                    <button onclick="window.location.href='/settings'" class="btn-secondary">⚙️ Настройки бота</button>
+                    <button onclick="window.location.href='/admin/logs'" class="btn-secondary">📊 Логи</button>
+                    <button onclick="window.location.href='/admin/settings'" class="btn-secondary">⚙️ Настройки бота</button>
                     <button onclick="retrainModel()" class="btn-warning">🔄 Переобучить модель</button>
                 </div>
             </div>
@@ -744,9 +744,9 @@
                 let response;
                 
                 if (searchType === 'text') {
-                    response = await fetch(`/search?q=${encodeURIComponent(query)}`);
+                    response = await fetch(`/admin/search?q=${encodeURIComponent(query)}`);
                 } else {
-                    response = await fetch('/search/semantic', {
+                    response = await fetch('/admin/search/semantic', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({query: query, n_results: 20})
@@ -844,8 +844,8 @@
         // Загрузка списка FAQ
         async function loadFAQs(category = '') {
             if (isSearchActive) return; // Не перезагружаем если активен поиск
-            
-            const url = category ? `/faq/list?category=${category}` : '/faq/list';
+
+            const url = category ? `/admin/faq/list?category=${category}` : '/admin/faq/list';
             const response = await fetch(url);
             const faqs = await response.json();
 
@@ -888,7 +888,7 @@
             select.innerHTML = '<option value="">Выберите категорию</option>';
 
             try {
-                const response = await fetch('/categories');
+                const response = await fetch('/admin/categories');
                 if (!response.ok) throw new Error('Ошибка загрузки категорий');
 
                 const categories = await response.json();
@@ -923,7 +923,7 @@
         }
 
         async function editFAQ(id) {
-            const response = await fetch(`/faq/${id}`);
+            const response = await fetch(`/admin/faq/${id}`);
             const faq = await response.json();
 
             currentEditId = id;
@@ -972,13 +972,13 @@
 
             let response;
             if (currentEditId) {
-                response = await fetch(`/faq/update/${currentEditId}`, {
+                response = await fetch(`/admin/faq/update/${currentEditId}`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(data)
                 });
             } else {
-                response = await fetch('/faq/add', {
+                response = await fetch('/admin/faq/add', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(data)
@@ -999,7 +999,7 @@
         async function deleteFAQ(id) {
             if (!confirm('Вы уверены, что хотите удалить этот FAQ?')) return;
 
-            const response = await fetch(`/faq/delete/${id}`, {
+            const response = await fetch(`/admin/faq/delete/${id}`, {
                 method: 'DELETE'
             });
 
@@ -1018,7 +1018,7 @@
 
             showNotification('Переобучение модели...', 'info');
 
-            const response = await fetch('/retrain', {
+            const response = await fetch('/admin/retrain', {
                 method: 'POST'
             });
 
@@ -1057,7 +1057,7 @@
                 return;
             }
 
-            const response = await fetch('/categories', {
+            const response = await fetch('/admin/categories', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ name })
