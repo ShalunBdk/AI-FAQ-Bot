@@ -1,0 +1,26 @@
+# Симлинк на docker/docker-compose.yml для удобства
+# Запуск: docker-compose up -d
+# Этот файл импортирует конфигурацию из docker/
+
+services:
+  web-admin:
+    extends:
+      file: docker/docker-compose.yml
+      service: web-admin
+
+  telegram-bot:
+    extends:
+      file: docker/docker-compose.yml
+      service: telegram-bot
+
+  bitrix24-bot:
+    extends:
+      file: docker/docker-compose.yml
+      service: bitrix24-bot
+
+networks:
+  faqbot-network:
+    driver: bridge
+
+volumes:
+  sentence-transformers-cache:

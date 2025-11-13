@@ -1,0 +1,107 @@
+services:
+  # Web админка (основной сервис, всегда запускается)
+  web-admin:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: faqbot-web-admin
+    command: python src/web/web_admin.py
+    restart: unless-stopped
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
+      - ANONYMIZED_TELEMETRY=False
+    volumes:
+      # База данных SQLite (общая для всех сервисов)
+      - ../data/faq_database.db:/app/data/faq_database.db
+      # Векторная база ChromaDB (общая для всех сервисов)
+      - ../data/chroma_db:/app/data/chroma_db
+      # Шаблоны Flask
+      - ../src/web/templates:/app/src/web/templates
+      # Кэш моделей sentence-transformers
+      - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
+    ports:
+      - "5000:5000"  # Доступен на всех интерфейсах для Nginx из DMZ
+    networks:
+      - faqbot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Telegram бот (опционально - profile: telegram)
+  telegram-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: faqbot-telegram
+    command: python src/bots/bot.py
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - MODEL_NAME=${MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}
+      - ANONYMIZED_TELEMETRY=False
+    volumes:
+      # База данных SQLite (общая для всех сервисов)
+      - ../data/faq_database.db:/app/data/faq_database.db
+      # Векторная база ChromaDB (общая для всех сервисов)
+      - ../data/chroma_db:/app/data/chroma_db
+      # Кэш моделей sentence-transformers
+      - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
+    ports:
+      - "5001:5001"  # Internal reload server (не нужно открывать в firewall)
+    networks:
+      - faqbot-network
+    depends_on:
+      - web-admin
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - telegram
+
+  # Bitrix24 бот (опционально - profile: bitrix24)
+  bitrix24-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: faqbot-bitrix24
+    command: python src/bots/b24_bot.py
+    restart: unless-stopped
+    environment:
+      - BITRIX24_WEBHOOK=${BITRIX24_WEBHOOK}
+      - BITRIX24_BOT_ID=${BITRIX24_BOT_ID}
+      - BITRIX24_CLIENT_ID=${BITRIX24_CLIENT_ID}
+      - BITRIX24_HANDLER_URL=${BITRIX24_HANDLER_URL}
+      - MODEL_NAME=${MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}
+      - ANONYMIZED_TELEMETRY=False
+    volumes:
+      # База данных SQLite (общая для всех сервисов)
+      - ../data/faq_database.db:/app/data/faq_database.db
+      # Векторная база ChromaDB (общая для всех сервисов)
+      - ../data/chroma_db:/app/data/chroma_db
+      # Кэш моделей sentence-transformers
+      - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
+    ports:
+      - "5002:5002"  # Доступен на всех интерфейсах для Nginx из DMZ
+    networks:
+      - faqbot-network
+    depends_on:
+      - web-admin
+    # Отключаем healthcheck так как Bitrix24 может быть не настроен
+    profiles:
+      - bitrix24
+
+networks:
+  faqbot-network:
+    driver: bridge
+
+volumes:
+  # Named volume для кэша моделей (чтобы не скачивать при каждой пересборке)
+  sentence-transformers-cache:
