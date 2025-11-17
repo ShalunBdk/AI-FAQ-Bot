@@ -1,1008 +1,567 @@
 <!DOCTYPE html>
-<html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Настройки бота - FAQ Bot</title>
+<html class="light" lang="ru">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Настройки бота - Панель администратора</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
 
     <!-- Quill WYSIWYG Editor -->
-    <link
-      href="https://cdn.quilljs.com/1.3.6/quill.snow.css"
-      rel="stylesheet"
-    />
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-          "Helvetica Neue", Arial, sans-serif;
-        background: #f5f6fa;
-        min-height: 100vh;
-        padding: 20px;
-      }
-
-      .container {
-        max-width: 900px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-      }
-
-      .header {
-        background: #2c3e50;
-        color: white;
-        padding: 30px;
-        border-bottom: 3px solid #34495e;
-      }
-
-      .header h1 {
-        font-size: 2em;
-        margin-bottom: 5px;
-        font-weight: 600;
-      }
-
-      .header p {
-        opacity: 0.85;
-        font-size: 1em;
-        color: #ecf0f1;
-      }
-
-      .nav {
-        background: #f8f9fa;
-        padding: 15px 30px;
-        border-bottom: 2px solid #e9ecef;
-      }
-
-      .nav a {
-        color: #3498db;
-        text-decoration: none;
-        font-weight: 500;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        transition: all 0.3s;
-      }
-
-      .nav a:hover {
-        color: #2980b9;
-      }
-
-      .content {
-        padding: 30px;
-      }
-
-      .settings-form {
-        display: flex;
-        flex-direction: column;
-        gap: 25px;
-      }
-
-      .setting-group {
-        background: #f8f9fa;
-        border: 2px solid #e9ecef;
-        border-radius: 4px;
-        padding: 20px;
-        transition: all 0.3s;
-      }
-
-      .setting-group:hover {
-        border-color: #3498db;
-        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.1);
-      }
-
-      .setting-group h3 {
-        color: #3498db;
-        margin-bottom: 10px;
-        font-size: 1.2em;
-      }
-
-      .setting-group .hint {
-        color: #6c757d;
-        font-size: 14px;
-        margin-bottom: 15px;
-        line-height: 1.5;
-      }
-
-      .setting-group label {
-        display: block;
-        font-weight: bold;
-        color: #495057;
-        margin-bottom: 8px;
-      }
-
-      .editor-preview-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
-        margin-top: 10px;
-        align-items: start;
-      }
-
-      .editor-section {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-      }
-
-      .preview-section {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-      }
-
-      .preview-section .preview-title {
-        margin-bottom: 10px;
-      }
-
-      .setting-group input,
-      .setting-group textarea {
-        width: 100%;
-        padding: 12px;
-        border: 2px solid #dee2e6;
-        border-radius: 8px;
-        font-size: 16px;
-        font-family: inherit;
-        transition: all 0.3s;
-      }
-
-      .setting-group textarea {
-        min-height: 200px;
-        resize: vertical;
-        flex: 1;
-      }
-
-      /* Скрываем textarea для WYSIWYG редактора */
-      .setting-group textarea.wysiwyg-source {
-        display: none;
-      }
-
-      /* Стили для Quill редактора */
-      .wysiwyg-editor {
-        background: white;
-        border: 2px solid #dee2e6;
-        border-radius: 8px;
-        min-height: 200px;
-      }
-
-      /* Меньшая высота для коротких сообщений */
-      #feedback_response_yes_editor,
-      #feedback_response_no_editor {
-        min-height: 120px;
-      }
-
-      #feedback_response_yes_editor .ql-container,
-      #feedback_response_no_editor .ql-container {
-        min-height: 80px;
-      }
-
-      #feedback_response_yes_editor .ql-editor,
-      #feedback_response_no_editor .ql-editor {
-        min-height: 80px;
-      }
-
-      .wysiwyg-editor .ql-toolbar {
-        border: none;
-        border-bottom: 2px solid #dee2e6;
-        border-radius: 8px 8px 0 0;
-        background: #f8f9fa;
-        padding: 8px;
-      }
-
-      .wysiwyg-editor .ql-toolbar button {
-        margin: 0 2px;
-      }
-
-      .wysiwyg-editor .ql-toolbar button:hover {
-        color: #3498db;
-      }
-
-      .wysiwyg-editor .ql-toolbar button.ql-active {
-        color: #3498db;
-      }
-
-      .wysiwyg-editor .ql-container {
-        border: none;
-        font-size: 16px;
-        font-family: inherit;
-        min-height: 180px;
-      }
-
-      .wysiwyg-editor .ql-editor {
-        min-height: 180px;
-        padding: 12px;
-        line-height: 1.6;
-      }
-
-      .wysiwyg-editor .ql-editor.ql-blank::before {
-        color: #adb5bd;
-        font-style: normal;
-      }
-
-      .wysiwyg-editor:focus-within {
-        border-color: #3498db;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-      }
-
-      /* Стили для форматированного текста в редакторе */
-      .wysiwyg-editor .ql-editor strong,
-      .wysiwyg-editor .ql-editor b {
-        font-weight: bold;
-      }
-
-      .wysiwyg-editor .ql-editor em,
-      .wysiwyg-editor .ql-editor i {
-        font-style: italic;
-      }
-
-      .wysiwyg-editor .ql-editor u {
-        text-decoration: underline;
-      }
-
-      .wysiwyg-editor .ql-editor s {
-        text-decoration: line-through;
-      }
-
-      .wysiwyg-editor .ql-syntax {
-        background: #f8f9fa;
-        padding: 8px 12px;
-        border-radius: 4px;
-        font-family: monospace;
-        display: block;
-        margin: 8px 0;
-      }
-
-      .setting-group input:focus,
-      .setting-group textarea:focus {
-        outline: none;
-        border-color: #3498db;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-      }
-
-      .preview {
-        background: #e8e8e8;
-        padding: 20px;
-        border-radius: 8px;
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 100px;
-      }
-
-      .preview-title {
-        font-size: 12px;
-        color: #6c757d;
-        font-weight: bold;
-      }
-
-      .telegram-message {
-        background: #2481cc;
-        color: white;
-        padding: 12px 16px;
-        border-radius: 12px 12px 12px 4px;
-        max-width: 85%;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        font-size: 15px;
-        line-height: 1.5;
-        word-wrap: break-word;
-        align-self: flex-start;
-      }
-
-      .preview-content {
-        line-height: 1.5;
-      }
-
-      /* Стили для Markdown в Telegram сообщении */
-      .telegram-message strong {
-        font-weight: bold;
-      }
-
-      .telegram-message em {
-        font-style: italic;
-      }
-
-      .telegram-message ul,
-      .telegram-message ol {
-        margin-left: 20px;
-        margin-top: 8px;
-        margin-bottom: 8px;
-      }
-
-      .telegram-message p {
-        margin: 0;
-      }
-
-      .telegram-message p + p {
-        margin-top: 8px;
-      }
-
-      .telegram-message p:first-child {
-        margin-top: 0;
-      }
-
-      .telegram-message h1,
-      .telegram-message h2,
-      .telegram-message h3 {
-        margin-top: 10px;
-        margin-bottom: 8px;
-        font-weight: bold;
-      }
-
-      .telegram-message code {
-        background: rgba(255, 255, 255, 0.2);
-        padding: 2px 5px;
-        border-radius: 3px;
-        font-family: monospace;
-      }
-
-      .telegram-message a {
-        color: #a8d4ff;
-        text-decoration: underline;
-      }
-
-      /* Для кнопок - показываем как обычный текст в белом фоне */
-      .telegram-button {
-        background: white;
-        color: #2481cc;
-        padding: 10px 16px;
-        border-radius: 8px;
-        display: inline-block;
-        font-weight: 500;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        min-width: 120px;
-        margin: 10px 0;
-      }
-
-      .actions {
-        display: flex;
-        gap: 15px;
-        justify-content: flex-end;
-        margin-top: 30px;
-        padding-top: 30px;
-        border-top: 2px solid #e9ecef;
-      }
-
-      button {
-        padding: 12px 25px;
-        border: none;
-        border-radius: 8px;
-        font-size: 16px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-      }
-
-      button:active {
-        transform: translateY(0);
-      }
-
-      .btn-primary {
-        background: #3498db;
-        color: white;
-      }
-
-      .btn-primary:hover {
-        background: #2980b9;
-      }
-
-      .btn-warning {
-        background: #ffc107;
-        color: #000;
-      }
-
-      .btn-warning:hover {
-        background: #e0a800;
-      }
-
-      .btn-secondary {
-        background: #6c757d;
-        color: white;
-      }
-
-      .btn-secondary:hover {
-        background: #5a6268;
-      }
-
-      .notification {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 25px;
-        border-radius: 8px;
-        color: white;
-        font-weight: bold;
-        z-index: 2000;
-        animation: slideIn 0.3s;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-      }
-
-      @keyframes slideIn {
-        from {
-          transform: translateX(400px);
-          opacity: 0;
-        }
-        to {
-          transform: translateX(0);
-          opacity: 1;
-        }
-      }
-
-      .notification.success {
-        background: #28a745;
-      }
-
-      .notification.error {
-        background: #dc3545;
-      }
-
-      .notification.info {
-        background: #17a2b8;
-      }
-
-      .loading {
-        text-align: center;
-        padding: 40px;
-        font-size: 1.2em;
-        color: #3498db;
-      }
-
-      .spinner {
-        border: 3px solid #f3f3f3;
-        border-top: 3px solid #3498db;
-        border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        animation: spin 1s linear infinite;
-        display: inline-block;
-        margin-right: 10px;
-      }
-
-      @keyframes spin {
-        0% {
-          transform: rotate(0deg);
-        }
-        100% {
-          transform: rotate(360deg);
-        }
-      }
-
-      /* Адаптивность для маленьких экранов */
-      @media (max-width: 768px) {
-        .editor-preview-container {
-          grid-template-columns: 1fr;
-        }
-
-        .container {
-          margin: 10px;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>⚙️ Настройки бота</h1>
-        <p>Управление текстами и сообщениями Telegram-бота</p>
-      </div>
-
-      <div class="nav">
-        <a href="/admin/">← Вернуться к списку FAQ</a>
-        <a href="/admin/logs" style="margin-left: 20px">📊 Логи взаимодействий</a>
-      </div>
-
-      <div class="content">
-        <div id="loadingIndicator" class="loading">
-          <div class="spinner"></div>
-          Загрузка настроек...
-        </div>
-
-        <form id="settingsForm" class="settings-form" style="display: none">
-          <!-- Приветственное сообщение -->
-          <div class="setting-group">
-            <h3>👋 Приветственное сообщение (/start)</h3>
-            <div class="hint">
-              Это сообщение видят пользователи при нажатии на команду /start или
-              /help. Используйте панель инструментов для форматирования текста
-              (жирный, курсив, подчеркивание, зачеркивание, код).
-            </div>
-            <div class="editor-preview-container">
-              <div class="editor-section">
-                <label for="start_message">Текст приветствия:</label>
-                <textarea
-                  id="start_message"
-                  name="start_message"
-                  class="wysiwyg-source"
-                  required
-                ></textarea>
-                <div id="start_message_editor" class="wysiwyg-editor"></div>
-              </div>
-              <div class="preview-section">
-                <div class="preview-title">Предпросмотр в Telegram:</div>
-                <div class="preview">
-                  <div class="telegram-message">
-                    <div
-                      id="start_message_preview"
-                      class="preview-content"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Кнопка "Полезно" -->
-          <div class="setting-group">
-            <h3>👍 Кнопка обратной связи "Полезно"</h3>
-            <div class="hint">
-              Текст кнопки, которая появляется под ответами бота.
-            </div>
-            <div class="editor-preview-container">
-              <div class="editor-section">
-                <label for="feedback_button_yes">Текст кнопки:</label>
-                <input
-                  type="text"
-                  id="feedback_button_yes"
-                  name="feedback_button_yes"
-                  required
-                />
-              </div>
-              <div class="preview-section">
-                <div class="preview-title">Предпросмотр в Telegram:</div>
-                <div class="preview">
-                  <div
-                    class="telegram-button"
-                    id="feedback_button_yes_preview"
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Кнопка "Не помогло" -->
-          <div class="setting-group">
-            <h3>👎 Кнопка обратной связи "Не помогло"</h3>
-            <div class="hint">Текст кнопки для негативного отзыва.</div>
-            <div class="editor-preview-container">
-              <div class="editor-section">
-                <label for="feedback_button_no">Текст кнопки:</label>
-                <input
-                  type="text"
-                  id="feedback_button_no"
-                  name="feedback_button_no"
-                  required
-                />
-              </div>
-              <div class="preview-section">
-                <div class="preview-title">Предпросмотр в Telegram:</div>
-                <div class="preview">
-                  <div
-                    class="telegram-button"
-                    id="feedback_button_no_preview"
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Ответ на "Полезно" -->
-          <div class="setting-group">
-            <h3>✅ Ответ на положительный отзыв</h3>
-            <div class="hint">
-              Сообщение, которое видит пользователь после нажатия на кнопку
-              "Полезно". Используйте панель инструментов для форматирования
-              текста.
-            </div>
-            <div class="editor-preview-container">
-              <div class="editor-section">
-                <label for="feedback_response_yes">Текст ответа:</label>
-                <textarea
-                  id="feedback_response_yes"
-                  name="feedback_response_yes"
-                  class="wysiwyg-source"
-                  required
-                  rows="3"
-                ></textarea>
-                <div
-                  id="feedback_response_yes_editor"
-                  class="wysiwyg-editor"
-                ></div>
-              </div>
-              <div class="preview-section">
-                <div class="preview-title">Предпросмотр в Telegram:</div>
-                <div class="preview">
-                  <div class="telegram-message">
-                    <div
-                      id="feedback_response_yes_preview"
-                      class="preview-content"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Ответ на "Не помогло" -->
-          <div class="setting-group">
-            <h3>😔 Ответ на негативный отзыв</h3>
-            <div class="hint">
-              Сообщение, которое видит пользователь после нажатия на кнопку "Не
-              помогло". Здесь можно указать контакты для дополнительной помощи.
-              Используйте панель инструментов для форматирования текста.
-            </div>
-            <div class="editor-preview-container">
-              <div class="editor-section">
-                <label for="feedback_response_no">Текст ответа:</label>
-                <textarea
-                  id="feedback_response_no"
-                  name="feedback_response_no"
-                  class="wysiwyg-source"
-                  required
-                  rows="3"
-                ></textarea>
-                <div
-                  id="feedback_response_no_editor"
-                  class="wysiwyg-editor"
-                ></div>
-              </div>
-              <div class="preview-section">
-                <div class="preview-title">Предпросмотр в Telegram:</div>
-                <div class="preview">
-                  <div class="telegram-message">
-                    <div
-                      id="feedback_response_no_preview"
-                      class="preview-content"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Действия -->
-          <div class="actions">
-            <button type="button" onclick="resetSettings()" class="btn-warning">
-              🔄 Сбросить к умолчаниям
-            </button>
-            <button type="submit" class="btn-primary">
-              💾 Сохранить изменения
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
     <script>
-      // WYSIWYG редакторы
-      const editors = {};
-
-      // Инициализация Quill редакторов
-      function initWysiwygEditors() {
-        // Если редакторы уже инициализированы, не создаваем заново
-        if (Object.keys(editors).length > 0) {
-          return;
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#2b8cee",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
         }
+    </script>
+
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+
+        /* Quill Editor Styles */
+        .wysiwyg-editor {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            height: auto !important;
+        }
+        .wysiwyg-editor .ql-toolbar {
+            border: none;
+            border-bottom: 2px solid #dee2e6;
+            background: #f8f9fa;
+            padding: 8px;
+        }
+        .wysiwyg-editor .ql-container {
+            border: none;
+            font-size: 16px;
+            font-family: inherit;
+            height: 150px;
+        }
+        .wysiwyg-editor .ql-editor {
+            height: 150px;
+            padding: 12px;
+            line-height: 1.6;
+            overflow-y: auto;
+        }
+
+        /* Для длинного приветственного сообщения */
+        #start_message_editor .ql-container,
+        #start_message_editor .ql-editor {
+            height: 180px;
+        }
+
+        /* Для коротких ответов на обратную связь */
+        #feedback_response_yes_editor .ql-container,
+        #feedback_response_no_editor .ql-container,
+        #feedback_response_yes_editor .ql-editor,
+        #feedback_response_no_editor .ql-editor {
+            height: 100px;
+        }
+
+        .wysiwyg-editor .ql-editor.ql-blank::before {
+            color: #adb5bd;
+            font-style: normal;
+        }
+        .wysiwyg-editor:focus-within {
+            border-color: #3498db;
+        }
+
+        /* Скрываем textarea для WYSIWYG редактора */
+        .wysiwyg-source {
+            display: none !important;
+        }
+
+        /* Telegram Preview */
+        .telegram-message {
+            background: #2481cc;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px 12px 12px 4px;
+            max-width: 85%;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            font-size: 15px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .telegram-message strong { font-weight: bold; }
+        .telegram-message em { font-style: italic; }
+        .telegram-message code {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+
+        .telegram-button {
+            background: white;
+            color: #2481cc;
+            padding: 10px 16px;
+            border-radius: 8px;
+            display: inline-block;
+            font-weight: 500;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            min-width: 120px;
+        }
+    </style>
+</head>
+
+<body class="font-display bg-background-light dark:bg-background-dark text-[#1F2937] dark:text-gray-200">
+<div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 flex-shrink-0 bg-white dark:bg-[#182431] border-r border-gray-200 dark:border-gray-700 p-4">
+        <div class="flex flex-col h-full">
+            <div class="flex items-center gap-3 mb-8">
+                <div class="bg-primary rounded-lg size-10 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-white">support_agent</span>
+                </div>
+                <h1 class="text-lg font-bold text-gray-800 dark:text-white">Админ-панель</h1>
+            </div>
+
+            <nav class="flex flex-col gap-2 flex-grow">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">import_contacts</span>
+                    <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">База знаний</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/logs">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">receipt_long</span>
+                    <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Логи</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="/admin/settings">
+                    <span class="material-symbols-outlined fill">settings</span>
+                    <p class="text-sm font-bold leading-normal">Настройки</p>
+                </a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-6 lg:p-10">
+        <div class="max-w-5xl mx-auto">
+            <!-- Header -->
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-gray-800 dark:text-white text-3xl font-bold leading-tight">Настройки бота</h1>
+                    <p class="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">Управление текстами и сообщениями Telegram-бота.</p>
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" class="text-center py-12 text-primary">
+                <span class="material-symbols-outlined text-4xl animate-spin inline-block mb-2">refresh</span>
+                <p>Загрузка настроек...</p>
+            </div>
+
+            <!-- Settings Form -->
+            <form id="settingsForm" class="space-y-6" style="display: none;">
+                <!-- Приветственное сообщение -->
+                <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 class="text-gray-800 dark:text-white text-xl font-bold mb-2 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">waving_hand</span>
+                        Приветственное сообщение (/start)
+                    </h3>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                        Это сообщение видят пользователи при нажатии на команду /start или /help. Используйте панель инструментов для форматирования текста.
+                    </p>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Текст приветствия:</label>
+                            <textarea id="start_message" class="wysiwyg-source" required></textarea>
+                            <div id="start_message_editor" class="wysiwyg-editor"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Предпросмотр в Telegram:</label>
+                            <div class="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-4 min-h-[180px]">
+                                <div class="telegram-message">
+                                    <div id="start_message_preview"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Кнопка "Полезно" -->
+                <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 class="text-gray-800 dark:text-white text-xl font-bold mb-2 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-green-500 fill">thumb_up</span>
+                        Кнопка обратной связи "Полезно"
+                    </h3>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                        Текст кнопки, которая появляется под ответами бота.
+                    </p>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Текст кнопки:</label>
+                            <input type="text" id="feedback_button_yes" required class="form-input w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Предпросмотр в Telegram:</label>
+                            <div class="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-4">
+                                <div class="telegram-button" id="feedback_button_yes_preview"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Кнопка "Не помогло" -->
+                <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 class="text-gray-800 dark:text-white text-xl font-bold mb-2 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-red-500 fill">thumb_down</span>
+                        Кнопка обратной связи "Не помогло"
+                    </h3>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                        Текст кнопки для негативного отзыва.
+                    </p>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Текст кнопки:</label>
+                            <input type="text" id="feedback_button_no" required class="form-input w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Предпросмотр в Telegram:</label>
+                            <div class="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-4">
+                                <div class="telegram-button" id="feedback_button_no_preview"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ответ на "Полезно" -->
+                <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 class="text-gray-800 dark:text-white text-xl font-bold mb-2 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-green-500 fill">check_circle</span>
+                        Ответ на положительный отзыв
+                    </h3>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                        Сообщение, которое видит пользователь после нажатия на кнопку "Полезно".
+                    </p>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Текст ответа:</label>
+                            <textarea id="feedback_response_yes" class="wysiwyg-source" required></textarea>
+                            <div id="feedback_response_yes_editor" class="wysiwyg-editor"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Предпросмотр в Telegram:</label>
+                            <div class="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-4">
+                                <div class="telegram-message">
+                                    <div id="feedback_response_yes_preview"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ответ на "Не помогло" -->
+                <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 class="text-gray-800 dark:text-white text-xl font-bold mb-2 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-red-500 fill">cancel</span>
+                        Ответ на негативный отзыв
+                    </h3>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                        Сообщение, которое видит пользователь после нажатия на кнопку "Не помогло". Здесь можно указать контакты для дополнительной помощи.
+                    </p>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Текст ответа:</label>
+                            <textarea id="feedback_response_no" class="wysiwyg-source" required></textarea>
+                            <div id="feedback_response_no_editor" class="wysiwyg-editor"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Предпросмотр в Telegram:</label>
+                            <div class="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-4">
+                                <div class="telegram-message">
+                                    <div id="feedback_response_no_preview"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Действия -->
+                <div class="flex gap-3 justify-end pt-4">
+                    <button type="button" onclick="resetSettings()" class="flex items-center gap-2 px-5 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
+                        <span class="material-symbols-outlined">restart_alt</span>
+                        <span>Сбросить к умолчаниям</span>
+                    </button>
+                    <button type="submit" class="flex items-center gap-2 px-5 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                        <span class="material-symbols-outlined">save</span>
+                        <span>Сохранить изменения</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>
+
+<script>
+    const editors = {};
+
+    // Конвертация Quill HTML в Telegram HTML
+    function convertQuillToTelegramHtml(html) {
+        html = html.replace(/<strong>/g, '<b>');
+        html = html.replace(/<\/strong>/g, '</b>');
+        html = html.replace(/<em>/g, '<i>');
+        html = html.replace(/<\/em>/g, '</i>');
+        html = html.replace(/<pre class="ql-syntax"[^>]*>/g, '<code>');
+        html = html.replace(/<\/pre>/g, '</code>');
+        html = html.replace(/<p><br><\/p>/g, '\n');
+        html = html.replace(/<p>/g, '');
+        html = html.replace(/<\/p>/g, '\n');
+        html = html.replace(/<br>/g, '\n');
+        html = html.replace(/<br\/>/g, '\n');
+        html = html.replace(/<br \/>/g, '\n');
+        html = html.replace(/\n+$/g, '');
+        return html;
+    }
+
+    // Конвертация Telegram HTML в Quill HTML
+    function convertTelegramToQuillHtml(html) {
+        if (!html) return '<p><br></p>';
+        html = html.replace(/<b>/g, '<strong>');
+        html = html.replace(/<\/b>/g, '</strong>');
+        html = html.replace(/<i>/g, '<em>');
+        html = html.replace(/<\/i>/g, '</em>');
+        html = html.replace(/<code>/g, '<code class="ql-code">');
+        const lines = html.split('\n');
+        const paragraphs = lines.map(line => {
+            if (line.trim() === '') return '<p><br></p>';
+            return '<p>' + line + '</p>';
+        });
+        return paragraphs.join('');
+    }
+
+    // Инициализация Quill редакторов
+    function initWysiwygEditors() {
+        if (Object.keys(editors).length > 0) return;
 
         const editorConfigs = [
-          { id: "start_message", containerId: "start_message_editor" },
-          {
-            id: "feedback_response_yes",
-            containerId: "feedback_response_yes_editor",
-          },
-          {
-            id: "feedback_response_no",
-            containerId: "feedback_response_no_editor",
-          },
+            { id: "start_message", containerId: "start_message_editor" },
+            { id: "feedback_response_yes", containerId: "feedback_response_yes_editor" },
+            { id: "feedback_response_no", containerId: "feedback_response_no_editor" },
         ];
 
         editorConfigs.forEach((config) => {
-          const container = document.getElementById(config.containerId);
-          const textarea = document.getElementById(config.id);
+            const container = document.getElementById(config.containerId);
+            const textarea = document.getElementById(config.id);
 
-          // Настройка toolbar - только нужные кнопки для Telegram
-          const quill = new Quill(`#${config.containerId}`, {
-            theme: "snow",
-            modules: {
-              toolbar: [
-                ["bold", "italic", "underline", "strike"],
-                ["code-block"],
-                ["clean"],
-              ],
-            },
-            placeholder: "Введите текст...",
-          });
+            const quill = new Quill(`#${config.containerId}`, {
+                theme: "snow",
+                modules: {
+                    toolbar: [
+                        ["bold", "italic", "underline", "strike"],
+                        ["code-block"],
+                        ["clean"],
+                    ],
+                },
+                placeholder: "Введите текст...",
+            });
 
-          // Сохраняем редактор
-          editors[config.id] = quill;
+            editors[config.id] = quill;
 
-          // Синхронизация: Quill -> textarea -> preview
-          quill.on("text-change", () => {
-            let html = quill.root.innerHTML;
-
-            // Конвертируем Quill HTML в Telegram HTML
-            html = convertQuillToTelegramHtml(html);
-
-            textarea.value = html;
-            updatePreview(config.id, config.id + "_preview");
-          });
+            quill.on("text-change", () => {
+                let html = quill.root.innerHTML;
+                html = convertQuillToTelegramHtml(html);
+                textarea.value = html;
+                updatePreview(config.id, config.id + "_preview");
+            });
         });
-      }
+    }
 
-      // Конвертация Quill HTML в Telegram HTML
-      function convertQuillToTelegramHtml(html) {
-        // Заменяем теги Quill на теги Telegram
-        html = html.replace(/<strong>/g, "<b>");
-        html = html.replace(/<\/strong>/g, "</b>");
-        html = html.replace(/<em>/g, "<i>");
-        html = html.replace(/<\/em>/g, "</i>");
-
-        // Конвертируем code-block в code
-        html = html.replace(/<pre class="ql-syntax"[^>]*>/g, "<code>");
-        html = html.replace(/<\/pre>/g, "</code>");
-
-        // ВАЖНО: Telegram HTML не поддерживает <br>, используем \n
-        // Убираем пустые параграфы
-        html = html.replace(/<p><br><\/p>/g, "\n");
-        html = html.replace(/<p>/g, "");
-        html = html.replace(/<\/p>/g, "\n");
-
-        // Заменяем <br> на \n
-        html = html.replace(/<br>/g, "\n");
-        html = html.replace(/<br\/>/g, "\n");
-        html = html.replace(/<br \/>/g, "\n");
-
-        // Убираем лишние переносы в конце
-        html = html.replace(/\n+$/g, "");
-
-        return html;
-      }
-
-      // Конвертация Telegram HTML в Quill HTML (обратная конвертация)
-      function convertTelegramToQuillHtml(html) {
-        if (!html) return "<p><br></p>";
-
-        // Конвертируем теги Telegram в теги Quill
-        html = html.replace(/<b>/g, "<strong>");
-        html = html.replace(/<\/b>/g, "</strong>");
-        html = html.replace(/<i>/g, "<em>");
-        html = html.replace(/<\/i>/g, "</em>");
-
-        // Конвертируем code в pre
-        html = html.replace(/<code>/g, '<code class="ql-code">');
-
-        // Разбиваем по \n и оборачиваем в <p> теги
-        const lines = html.split("\n");
-        const paragraphs = lines.map((line) => {
-          // Если строка пустая, создаем пустой параграф
-          if (line.trim() === "") {
-            return "<p><br></p>";
-          }
-          // Иначе оборачиваем в <p>
-          return "<p>" + line + "</p>";
-        });
-
-        return paragraphs.join("");
-      }
-
-      // Загрузка настроек при старте
-      async function loadSettings() {
+    // Загрузка настроек
+    async function loadSettings() {
         try {
-          const response = await fetch("/admin/api/settings");
-          const data = await response.json();
+            const response = await fetch("/admin/api/settings");
+            const data = await response.json();
 
-          if (data.success) {
-            const settings = data.settings;
+            if (data.success) {
+                const settings = data.settings;
 
-            // Заполняем обычные текстовые поля (кнопки)
-            document.getElementById("feedback_button_yes").value =
-              settings.feedback_button_yes || "";
-            document.getElementById("feedback_button_no").value =
-              settings.feedback_button_no || "";
+                document.getElementById("feedback_button_yes").value = settings.feedback_button_yes || "";
+                document.getElementById("feedback_button_no").value = settings.feedback_button_no || "";
 
-            // Инициализируем WYSIWYG редакторы
-            initWysiwygEditors();
+                initWysiwygEditors();
 
-            // Загружаем HTML в Quill редакторы, конвертируя из Telegram HTML
-            if (editors["start_message"]) {
-              const quillHtml = convertTelegramToQuillHtml(
-                settings.start_message || ""
-              );
-              editors["start_message"].root.innerHTML = quillHtml;
-              // Триггерим обновление textarea
-              const html = convertQuillToTelegramHtml(
-                editors["start_message"].root.innerHTML
-              );
-              document.getElementById("start_message").value = html;
+                if (editors["start_message"]) {
+                    const quillHtml = convertTelegramToQuillHtml(settings.start_message || "");
+                    editors["start_message"].root.innerHTML = quillHtml;
+                    const html = convertQuillToTelegramHtml(editors["start_message"].root.innerHTML);
+                    document.getElementById("start_message").value = html;
+                }
+                if (editors["feedback_response_yes"]) {
+                    const quillHtml = convertTelegramToQuillHtml(settings.feedback_response_yes || "");
+                    editors["feedback_response_yes"].root.innerHTML = quillHtml;
+                    const html = convertQuillToTelegramHtml(editors["feedback_response_yes"].root.innerHTML);
+                    document.getElementById("feedback_response_yes").value = html;
+                }
+                if (editors["feedback_response_no"]) {
+                    const quillHtml = convertTelegramToQuillHtml(settings.feedback_response_no || "");
+                    editors["feedback_response_no"].root.innerHTML = quillHtml;
+                    const html = convertQuillToTelegramHtml(editors["feedback_response_no"].root.innerHTML);
+                    document.getElementById("feedback_response_no").value = html;
+                }
+
+                updateAllPreviews();
+
+                document.getElementById("loadingIndicator").style.display = "none";
+                document.getElementById("settingsForm").style.display = "block";
+            } else {
+                showNotification("Ошибка загрузки настроек: " + data.message, "error");
             }
-            if (editors["feedback_response_yes"]) {
-              const quillHtml = convertTelegramToQuillHtml(
-                settings.feedback_response_yes || ""
-              );
-              editors["feedback_response_yes"].root.innerHTML = quillHtml;
-              // Триггерим обновление textarea
-              const html = convertQuillToTelegramHtml(
-                editors["feedback_response_yes"].root.innerHTML
-              );
-              document.getElementById("feedback_response_yes").value = html;
-            }
-            if (editors["feedback_response_no"]) {
-              const quillHtml = convertTelegramToQuillHtml(
-                settings.feedback_response_no || ""
-              );
-              editors["feedback_response_no"].root.innerHTML = quillHtml;
-              // Триггерим обновление textarea
-              const html = convertQuillToTelegramHtml(
-                editors["feedback_response_no"].root.innerHTML
-              );
-              document.getElementById("feedback_response_no").value = html;
-            }
-
-            // Обновляем превью
-            updateAllPreviews();
-
-            // Показываем форму
-            document.getElementById("loadingIndicator").style.display = "none";
-            document.getElementById("settingsForm").style.display = "flex";
-          } else {
-            showNotification(
-              "Ошибка загрузки настроек: " + data.message,
-              "error"
-            );
-          }
         } catch (error) {
-          showNotification(
-            "Ошибка при загрузке настроек: " + error.message,
-            "error"
-          );
+            showNotification("Ошибка при загрузке настроек: " + error.message, "error");
         }
-      }
+    }
 
-      // Обновление предпросмотра
-      function updatePreview(inputId, previewId) {
+    // Обновление предпросмотра
+    function updatePreview(inputId, previewId) {
         const input = document.getElementById(inputId);
         const preview = document.getElementById(previewId);
         let text = input.value;
 
-        // Для кнопок просто показываем текст
         if (inputId.includes("button")) {
-          preview.textContent = text;
-          return;
+            preview.textContent = text;
+            return;
         }
 
-        // Telegram использует HTML для форматирования
-        // Заменяем переносы строк на <br>
         text = text.replace(/\n/g, "<br>");
-
-        // Отображаем HTML как есть (браузер обработает теги <b>, <i> и т.д.)
         preview.innerHTML = text;
-      }
+    }
 
-      function updateAllPreviews() {
+    function updateAllPreviews() {
         updatePreview("start_message", "start_message_preview");
         updatePreview("feedback_button_yes", "feedback_button_yes_preview");
         updatePreview("feedback_button_no", "feedback_button_no_preview");
         updatePreview("feedback_response_yes", "feedback_response_yes_preview");
         updatePreview("feedback_response_no", "feedback_response_no_preview");
-      }
+    }
 
-      // Добавляем обработчики для обычных input полей (кнопки)
-      document.addEventListener("DOMContentLoaded", () => {
+    // Обработчики для обычных input полей
+    document.addEventListener("DOMContentLoaded", () => {
         const inputs = ["feedback_button_yes", "feedback_button_no"];
 
         inputs.forEach((inputId) => {
-          const element = document.getElementById(inputId);
-          element.addEventListener("input", () => {
-            updatePreview(inputId, inputId + "_preview");
-          });
+            const element = document.getElementById(inputId);
+            element.addEventListener("input", () => {
+                updatePreview(inputId, inputId + "_preview");
+            });
         });
-      });
+    });
 
-      // Сохранение настроек
-      document
-        .getElementById("settingsForm")
-        .addEventListener("submit", async (e) => {
-          e.preventDefault();
+    // Сохранение настроек
+    document.getElementById("settingsForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-          const settings = {
+        const settings = {
             start_message: document.getElementById("start_message").value,
-            feedback_button_yes: document.getElementById("feedback_button_yes")
-              .value,
-            feedback_button_no:
-              document.getElementById("feedback_button_no").value,
-            feedback_response_yes: document.getElementById(
-              "feedback_response_yes"
-            ).value,
-            feedback_response_no: document.getElementById(
-              "feedback_response_no"
-            ).value,
-          };
+            feedback_button_yes: document.getElementById("feedback_button_yes").value,
+            feedback_button_no: document.getElementById("feedback_button_no").value,
+            feedback_response_yes: document.getElementById("feedback_response_yes").value,
+            feedback_response_no: document.getElementById("feedback_response_no").value,
+        };
 
-          try {
+        try {
             showNotification("Сохранение настроек...", "info");
 
             const response = await fetch("/admin/api/settings", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ settings }),
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ settings }),
             });
 
             const data = await response.json();
 
             if (data.success) {
-              showNotification("✅ Настройки успешно сохранены!", "success");
+                showNotification("✅ Настройки успешно сохранены!", "success");
             } else {
-              showNotification("❌ Ошибка: " + data.message, "error");
+                showNotification("❌ Ошибка: " + data.message, "error");
             }
-          } catch (error) {
-            showNotification(
-              "❌ Ошибка при сохранении: " + error.message,
-              "error"
-            );
-          }
-        });
+        } catch (error) {
+            showNotification("❌ Ошибка при сохранении: " + error.message, "error");
+        }
+    });
 
-      // Сброс настроек
-      async function resetSettings() {
-        if (
-          !confirm(
-            "Вы уверены, что хотите сбросить все настройки к значениям по умолчанию?"
-          )
-        ) {
-          return;
+    // Сброс настроек
+    async function resetSettings() {
+        if (!confirm("Вы уверены, что хотите сбросить все настройки к значениям по умолчанию?")) {
+            return;
         }
 
         try {
-          showNotification("Сброс настроек...", "info");
+            showNotification("Сброс настроек...", "info");
 
-          const response = await fetch("/admin/api/settings/reset", {
-            method: "POST",
-          });
+            const response = await fetch("/admin/api/settings/reset", {
+                method: "POST",
+            });
 
-          const data = await response.json();
+            const data = await response.json();
 
-          if (data.success) {
-            showNotification("✅ Настройки сброшены!", "success");
-            // Перезагружаем настройки
-            setTimeout(() => {
-              loadSettings();
-            }, 1000);
-          } else {
-            showNotification("❌ Ошибка: " + data.message, "error");
-          }
+            if (data.success) {
+                showNotification("✅ Настройки сброшены!", "success");
+                setTimeout(() => {
+                    loadSettings();
+                }, 1000);
+            } else {
+                showNotification("❌ Ошибка: " + data.message, "error");
+            }
         } catch (error) {
-          showNotification("❌ Ошибка при сбросе: " + error.message, "error");
+            showNotification("❌ Ошибка при сбросе: " + error.message, "error");
         }
-      }
+    }
 
-      // Уведомления
-      function showNotification(message, type) {
+    // Уведомления
+    function showNotification(message, type) {
         const notification = document.createElement("div");
-        notification.className = `notification ${type}`;
+        notification.className = `fixed top-5 right-5 px-6 py-3 rounded-lg shadow-lg z-[100] text-white font-medium ${
+            type === 'success' ? 'bg-green-500' :
+            type === 'error' ? 'bg-red-500' :
+            'bg-blue-500'
+        }`;
         notification.textContent = message;
         document.body.appendChild(notification);
 
-        setTimeout(() => {
-          notification.remove();
-        }, 3000);
-      }
+        setTimeout(() => notification.remove(), 3000);
+    }
 
-      // Загружаем настройки при загрузке страницы
-      loadSettings();
-    </script>
-  </body>
+    // Загружаем настройки при загрузке страницы
+    loadSettings();
+</script>
+</body>
 </html>
