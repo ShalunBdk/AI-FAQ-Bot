@@ -43,10 +43,11 @@ TELEGRAM_BOT_RELOAD_URL = "http://127.0.0.1:5001/reload"  # Telegram бот
 TELEGRAM_BOT_RELOAD_SETTINGS_URL = "http://127.0.0.1:5001/reload-settings"
 
 BITRIX24_BOT_RELOAD_URL = "http://127.0.0.1:5002/api/reload-chromadb"  # Bitrix24 бот
+BITRIX24_BOT_RELOAD_SETTINGS_URL = "http://127.0.0.1:5002/api/reload-settings"  # Bitrix24 бот настройки
 
 # Список всех ботов для уведомления
 ALL_BOT_RELOAD_URLS = [TELEGRAM_BOT_RELOAD_URL, BITRIX24_BOT_RELOAD_URL]
-ALL_BOT_RELOAD_SETTINGS_URLS = [TELEGRAM_BOT_RELOAD_SETTINGS_URL]
+ALL_BOT_RELOAD_SETTINGS_URLS = [TELEGRAM_BOT_RELOAD_SETTINGS_URL, BITRIX24_BOT_RELOAD_SETTINGS_URL]
 
 # Инициализация ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")

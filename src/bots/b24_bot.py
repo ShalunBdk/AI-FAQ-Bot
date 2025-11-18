@@ -53,8 +53,78 @@ collection = None  # Загрузится при старте
 # Bitrix24 API
 b24_api = None  # Инициализируется при получении webhook
 
+# Кэш настроек бота
+bot_settings_cache = {}
+
 # Flask app для приема вебхуков
 app = Flask(__name__)
+
+
+# ========== ФУНКЦИИ КОНВЕРТАЦИИ ФОРМАТИРОВАНИЯ ==========
+
+def convert_html_to_bbcode(html: str) -> str:
+    """
+    Конвертирует HTML (Telegram формат) в BB коды Битрикс24
+
+    Поддерживаемые преобразования:
+    - <b>, <strong> → [b]...[/b]
+    - <i>, <em> → [i]...[/i]
+    - <u> → [u]...[/u]
+    - <s>, <strike>, <del> → [s]...[/s]
+    - <code> → [code]...[/code]
+    - <pre> → [code]...[/code]
+    - <a href="url">text</a> → [URL=url]text[/URL]
+    - Переносы строк сохраняются
+
+    Args:
+        html: HTML текст в Telegram формате
+
+    Returns:
+        Текст в BB кодах
+    """
+    import re
+
+    if not html:
+        return ""
+
+    text = html
+
+    # Жирный текст
+    text = re.sub(r'<b>(.*?)</b>', r'[b]\1[/b]', text, flags=re.DOTALL)
+    text = re.sub(r'<strong>(.*?)</strong>', r'[b]\1[/b]', text, flags=re.DOTALL)
+
+    # Курсив
+    text = re.sub(r'<i>(.*?)</i>', r'[i]\1[/i]', text, flags=re.DOTALL)
+    text = re.sub(r'<em>(.*?)</em>', r'[i]\1[/i]', text, flags=re.DOTALL)
+
+    # Подчёркнутый
+    text = re.sub(r'<u>(.*?)</u>', r'[u]\1[/u]', text, flags=re.DOTALL)
+
+    # Зачёркнутый
+    text = re.sub(r'<s>(.*?)</s>', r'[s]\1[/s]', text, flags=re.DOTALL)
+    text = re.sub(r'<strike>(.*?)</strike>', r'[s]\1[/s]', text, flags=re.DOTALL)
+    text = re.sub(r'<del>(.*?)</del>', r'[s]\1[/s]', text, flags=re.DOTALL)
+
+    # Код
+    text = re.sub(r'<code>(.*?)</code>', r'[code]\1[/code]', text, flags=re.DOTALL)
+    text = re.sub(r'<pre>(.*?)</pre>', r'[code]\1[/code]', text, flags=re.DOTALL)
+    text = re.sub(r'<pre[^>]*>(.*?)</pre>', r'[code]\1[/code]', text, flags=re.DOTALL)
+
+    # Ссылки
+    text = re.sub(r'<a\s+href=["\']([^"\']+)["\']>(.*?)</a>', r'[URL=\1]\2[/URL]', text, flags=re.DOTALL)
+
+    # Убираем оставшиеся HTML теги (например, <p>, <div>, <br>)
+    text = re.sub(r'<br\s*/?>', '\n', text)
+    text = re.sub(r'<p>', '', text)
+    text = re.sub(r'</p>', '\n', text)
+    text = re.sub(r'<div>', '', text)
+    text = re.sub(r'</div>', '\n', text)
+
+    # Очистка множественных переносов строк
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = text.strip()
+
+    return text
 
 
 # ========== ФУНКЦИИ ПОИСКА ==========
@@ -177,6 +247,20 @@ def reload_chromadb():
         return False
 
 
+def reload_bot_settings():
+    """Перезагружает настройки бота из БД"""
+    global bot_settings_cache
+    try:
+        bot_settings_cache = database.get_bot_settings()
+        logger.info(f"✅ Настройки бота загружены: {len(bot_settings_cache)} параметров")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка при загрузке настроек бота: {e}")
+        # Используем дефолтные настройки в случае ошибки
+        bot_settings_cache = database.DEFAULT_BOT_SETTINGS.copy()
+        return False
+
+
 def register_bot_commands(api: Bitrix24API):
     """Регистрация команд для кнопок"""
     try:
@@ -218,16 +302,11 @@ def handle_start(event: Bitrix24Event, api: Bitrix24API):
     """Обработка команды /start или /помощь"""
     logger.info(f"📩 Обработка команды /start от пользователя ID: {event.user_id}, Dialog ID: {event.dialog_id}")
 
-    message = (
-        "👋 Привет! Я FAQ Помощник.\n\n"
-        "Задавайте мне вопросы, и я постараюсь на них ответить на основе базы знаний.\n\n"
-        "📋 Команды:\n"
-        "категории - показать все категории вопросов\n"
-        "помощь - показать эту справку"
-    )
+    # Получаем текст приветствия из настроек
+    message = bot_settings_cache.get("start_message", database.DEFAULT_BOT_SETTINGS["start_message"])
 
     logger.debug(f"📤 Отправка приветственного сообщения. Dialog ID: {event.dialog_id}, длина текста: {len(message)} символов")
-    result = api.send_message(event.dialog_id, message)
+    result = api.send_message(event.dialog_id, convert_html_to_bbcode(message))
 
     if result.get('success') == False:
         logger.error(f"❌ Ошибка отправки приветствия: {result.get('error')}")
@@ -373,18 +452,25 @@ def send_answer(event: Bitrix24Event, api: Bitrix24API, match: Dict,
         answer_shown=match['answer']
     )
 
-    # Формируем сообщение
-    message = f"✅ {match['question']}\n\n{match['answer']}\n\n💡 Схожесть: {similarity:.1f}%"
+    # Конвертируем ответ из HTML в BB коды для Битрикс24
+    answer_bbcode = convert_html_to_bbcode(match['answer'])
+    question_bbcode = convert_html_to_bbcode(match['question'])
+
+    # Формируем сообщение с BB кодами
+    message = f"✅ [b]{question_bbcode}[/b]\n\n{answer_bbcode}\n\n💡 Схожесть: {similarity:.1f}%"
 
     # Кнопки обратной связи
+    yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
+    no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
+
     feedback_buttons = [[
         {
-            'text': '👍 Полезно',
+            'text': yes_text,
             'action': 'helpful_yes',
             'params': str(answer_log_id)
         },
         {
-            'text': '👎 Не помогло',
+            'text': no_text,
             'action': 'helpful_no',
             'params': str(answer_log_id)
         }
@@ -470,9 +556,9 @@ def handle_rating(event: Bitrix24Event, api: Bitrix24API,
 
     if success:
         if is_helpful:
-            message = "👍 Спасибо за отзыв! Рад, что смог помочь."
+            message = bot_settings_cache.get("feedback_response_yes", database.DEFAULT_BOT_SETTINGS["feedback_response_yes"])
         else:
-            message = "👎 Спасибо за отзыв. Попробуйте переформулировать вопрос или обратитесь к коллегам."
+            message = bot_settings_cache.get("feedback_response_no", database.DEFAULT_BOT_SETTINGS["feedback_response_no"])
     else:
         message = "❌ Ошибка сохранения отзыва"
 
@@ -686,6 +772,13 @@ def reload_chromadb_endpoint():
     return jsonify({'success': success})
 
 
+@app.route('/api/reload-settings', methods=['POST'])
+def reload_settings_endpoint():
+    """Endpoint для перезагрузки настроек бота (вызывается из web_admin.py)"""
+    success = reload_bot_settings()
+    return jsonify({'success': success})
+
+
 @app.route('/', methods=['GET'])
 def index():
     """Информация о боте (для GET запросов)"""
@@ -722,6 +815,9 @@ if __name__ == '__main__':
 
     # Инициализация ChromaDB
     init_chromadb()
+
+    # Загрузка настроек бота
+    reload_bot_settings()
 
     # Проверка конфигурации
     if not BITRIX24_WEBHOOK:

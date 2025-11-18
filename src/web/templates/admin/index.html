@@ -362,6 +362,60 @@
         return paragraphs.join('');
     }
 
+    // Конвертация Quill HTML в BB коды Битрикс24
+    function convertQuillToBBCode(html) {
+        if (!html) return '';
+
+        let text = html;
+
+        // Жирный текст
+        text = text.replace(/<strong>/g, '[b]');
+        text = text.replace(/<\/strong>/g, '[/b]');
+        text = text.replace(/<b>/g, '[b]');
+        text = text.replace(/<\/b>/g, '[/b]');
+
+        // Курсив
+        text = text.replace(/<em>/g, '[i]');
+        text = text.replace(/<\/em>/g, '[/i]');
+        text = text.replace(/<i>/g, '[i]');
+        text = text.replace(/<\/i>/g, '[/i]');
+
+        // Подчёркнутый
+        text = text.replace(/<u>/g, '[u]');
+        text = text.replace(/<\/u>/g, '[/u]');
+
+        // Зачёркнутый
+        text = text.replace(/<s>/g, '[s]');
+        text = text.replace(/<\/s>/g, '[/s]');
+        text = text.replace(/<strike>/g, '[s]');
+        text = text.replace(/<\/strike>/g, '[/s]');
+        text = text.replace(/<del>/g, '[s]');
+        text = text.replace(/<\/del>/g, '[/s]');
+
+        // Код
+        text = text.replace(/<code[^>]*>/g, '[code]');
+        text = text.replace(/<\/code>/g, '[/code]');
+        text = text.replace(/<pre[^>]*>/g, '[code]');
+        text = text.replace(/<\/pre>/g, '[/code]');
+
+        // Ссылки
+        text = text.replace(/<a\s+href=["']([^"']+)["'][^>]*>(.*?)<\/a>/g, '[URL=$1]$2[/URL]');
+
+        // Убираем оставшиеся HTML теги
+        text = text.replace(/<br\s*\/?>/g, '\n');
+        text = text.replace(/<p><br><\/p>/g, '\n');
+        text = text.replace(/<p>/g, '');
+        text = text.replace(/<\/p>/g, '\n');
+        text = text.replace(/<div>/g, '');
+        text = text.replace(/<\/div>/g, '\n');
+
+        // Очистка множественных переносов строк
+        text = text.replace(/\n{3,}/g, '\n\n');
+        text = text.trim();
+
+        return text;
+    }
+
     // Инициализация Quill редактора
     function initAnswerEditor() {
         if (answerEditor) return;
