@@ -2,10 +2,10 @@
 
 > **Purpose**: This document provides AI assistants with comprehensive context about the AI-FAQ-Bot codebase, including architecture, conventions, workflows, and best practices.
 
-**Last Updated**: 2025-11-14
+**Last Updated**: 2025-01-18
 **Repository**: AI-FAQ-Bot
 **Primary Language**: Python 3.11
-**Main Technologies**: python-telegram-bot, ChromaDB, sentence-transformers, Flask, SQLite
+**Main Technologies**: python-telegram-bot, ChromaDB, sentence-transformers, Flask, SQLite, Flask-CORS, PyJWT
 
 ---
 
@@ -37,10 +37,17 @@ A production-ready, multi-platform FAQ bot that uses **semantic search** to answ
 - **Semantic Search**: Uses sentence-transformers + ChromaDB for understanding question intent
 - **Multi-Platform**: Supports Telegram and Bitrix24 simultaneously
 - **Web Admin Panel**: Flask-based interface for FAQ management, analytics, and settings
+- **Bitrix24 Integration**:
+  - OAuth 2.0 authentication
+  - Embedded admin panel in Bitrix24 iframe
+  - Role-based access control (admin, observer)
+  - Permission management system
+  - Automatic employee list loading via BX24 SDK
 - **Hot Reload**: Update FAQ database without restarting bots
 - **Comprehensive Analytics**: Tracks queries, responses, similarity scores, and user feedback
 - **Anti-Spam Protection**: User-level rate limiting, callback debouncing, global bot protection
 - **Timezone Support**: All logs displayed in UTC+7, stored in UTC
+- **Modern UI**: Toast notifications, responsive design, Material Icons
 
 ### Architecture Principles
 
@@ -110,19 +117,27 @@ AI-FAQ-Bot/
 │   │   └── b24_api.py           # Bitrix24 REST API client
 │   └── web/                      # Web interface
 │       ├── web_admin.py         # Flask admin panel
+│       ├── middleware.py        # Authentication & CORS middleware
+│       ├── bitrix24_integration.py  # OAuth handlers & token storage
+│       ├── bitrix24_permissions.py  # Permissions API endpoints
 │       └── templates/           # HTML templates
-│           └── admin/
-│               ├── index.html   # FAQ CRUD
-│               ├── logs.html    # Analytics dashboard
-│               └── settings.html # Bot settings
+│           ├── admin/
+│           │   ├── index.html   # FAQ CRUD
+│           │   ├── logs.html    # Analytics dashboard
+│           │   ├── permissions.html # Bitrix24 permissions management
+│           │   └── settings.html # Bot settings
+│           └── bitrix24/
+│               └── app.html     # Embedded Bitrix24 app (iframe)
 │
 ├── scripts/                      # Utilities & migrations
 │   ├── migrate_data.py          # Initial DB setup
 │   ├── migrate_add_logging.py   # Add logging tables
 │   ├── migrate_add_platform.py  # Add platform field
+│   ├── migrate_add_bitrix24_permissions.py # Add permissions table
 │   ├── demo_faq.py              # Demo data (21 FAQs)
 │   ├── fix_tables.py            # DB repair utility
-│   └── register_bot.py          # Bitrix24 bot registration
+│   ├── register_bot.py          # Bitrix24 bot registration
+│   └── register_bitrix24_admin_app.py # Bitrix24 admin app registration helper
 │
 ├── docker/                       # Docker configuration
 │   ├── Dockerfile               # Multi-service image
@@ -174,6 +189,13 @@ get_all_settings() -> Dict
 
 # Analytics
 get_statistics(filters: Dict) -> Dict  # Returns: total_queries, unique_users, avg_similarity, etc.
+
+# Bitrix24 Permissions
+check_bitrix24_permission(domain: str, user_id: str) -> Optional[Dict]  # Check user permission
+add_bitrix24_permission(domain, user_id, user_name, role, created_by) -> bool
+get_bitrix24_permissions(domain: str) -> List[Dict]  # Get all users with permissions
+remove_bitrix24_permission(domain: str, user_id: str) -> bool
+get_all_bitrix24_domains() -> List[str]  # Get all registered Bitrix24 domains
 ```
 
 **Important Patterns**:
@@ -385,6 +407,154 @@ class Bitrix24Event:
 - Built to mirror `python-telegram-bot` API style for consistency
 - Extensive DEBUG logging for troubleshooting
 - Handles Bitrix24's flat `data[PARAMS][MESSAGE]` format
+
+---
+
+### 6. Bitrix24 OAuth Integration (`src/web/bitrix24_integration.py`)
+
+**Purpose**: OAuth 2.0 authentication and token management for Bitrix24 admin panel integration.
+
+**Key Components**:
+
+```python
+class Bitrix24TokenStorage:
+    """Manages OAuth tokens in SQLite"""
+
+    save_tokens(domain: str, tokens: Dict) -> None      # Store access/refresh tokens
+    get_tokens(domain: str) -> Optional[Dict]            # Retrieve tokens
+    delete_tokens(domain: str) -> bool                   # Remove tokens
+    _init_table()                                        # Create bitrix24_tokens table
+
+# OAuth Handlers
+handle_install(request_obj) -> Response     # Handle app installation (ONAPPINSTALL event)
+handle_index(request_obj) -> Response       # Handle first app opening
+handle_app(request_obj) -> Response         # Serve embedded app (iframe)
+add_initial_admin(domain, access_token)     # Auto-add installer as first admin
+```
+
+**OAuth Flow**:
+1. User installs app in Bitrix24 → `handle_install()` receives OAuth tokens
+2. Tokens saved to `bitrix24_tokens` table
+3. First installer automatically gets 'admin' role
+4. App loads in iframe → `handle_app()` serves `bitrix24/app.html`
+5. BX24 SDK initializes and authenticates user
+
+**Token Structure**:
+```python
+{
+    'domain': 'company.bitrix24.ru',
+    'access_token': 'xxx',
+    'refresh_token': 'yyy',
+    'expires_at': 1234567890000,  # Unix timestamp in ms
+    'member_id': 'abc',
+    'client_endpoint': 'https://company.bitrix24.ru/rest/'
+}
+```
+
+---
+
+### 7. Middleware (`src/web/middleware.py`)
+
+**Purpose**: Authentication and CORS validation for Bitrix24 integration.
+
+**Key Functions**:
+
+```python
+is_production() -> bool
+    # Returns True if ENVIRONMENT=production
+
+get_allowed_origins() -> List[str]
+    # Returns list of allowed CORS origins from:
+    # - BITRIX24_DOMAIN
+    # - ALLOWED_ORIGINS (comma-separated)
+    # - localhost (in development)
+
+check_cors_origin(origin: str) -> bool
+    # Validates if origin is allowed
+
+@require_bitrix24_auth(require_role: Optional[str] = None)
+    # Decorator for protecting admin routes
+    # Checks: production mode, JWT token, user role
+
+    # Usage examples:
+    @require_bitrix24_auth(require_role='admin')  # Only admin
+    @require_bitrix24_auth(require_role='observer')  # Admin or observer
+    @require_bitrix24_auth()  # Any authenticated user
+```
+
+**Production Mode Security**:
+- In production: blocks direct access to admin panel
+- Only allows access via Bitrix24 iframe (checks Origin header)
+- Validates JWT tokens
+- Enforces role-based access control
+
+---
+
+### 8. Permissions API (`src/web/bitrix24_permissions.py`)
+
+**Purpose**: REST API endpoints for managing Bitrix24 user permissions.
+
+**API Endpoints**:
+
+```python
+GET /api/bitrix24/permissions/check
+    # Check if user has permissions
+    # Params: domain, user_id
+    # Returns: {hasPermission: bool, role: str|null}
+
+GET /api/bitrix24/permissions/list
+    # Get all users with permissions for domain
+    # Params: domain
+    # Returns: {permissions: [{user_id, user_name, role, created_at, created_by}, ...]}
+
+POST /api/bitrix24/permissions/add
+    # Add permission to user
+    # Body: {domain, user_id, user_name, role, created_by}
+    # Returns: {success: bool, message: str}
+
+DELETE /api/bitrix24/permissions/remove
+    # Remove user's permission
+    # Body: {domain, user_id}
+    # Returns: {success: bool, message: str}
+
+POST /api/bitrix24/permissions/auth
+    # Authenticate and get JWT tokens
+    # Body: {domain, user_id, user_name}
+    # Returns: {accessToken: str, refreshToken: str, user: {...}}
+```
+
+**Roles**:
+- **admin**: Full access (FAQ CRUD, logs, settings, permission management)
+- **observer**: Limited access (FAQ CRUD, logs only - no settings or permissions)
+- **null**: Public search only (no admin access)
+
+---
+
+### 9. Permissions Management UI (`src/web/templates/admin/permissions.html`)
+
+**Purpose**: Web interface for managing Bitrix24 user permissions.
+
+**Key Features**:
+
+- **Employee List Loading**: Automatically fetches all employees from Bitrix24 via BX24.callMethod('user.get')
+- **Batch Loading**: Uses BX24.callBatch() for parallel loading of multiple pages (up to 1000 users)
+- **Toast Notifications**: Modern UI notifications for all actions (success, error, warning)
+- **Role Management**: Add/remove admin and observer roles
+- **Current User Detection**: Automatically gets current Bitrix24 user ID for created_by field
+
+**JavaScript Functions**:
+```javascript
+fetchEmployees()           // Load all employees from Bitrix24 (with pagination)
+showToast(message, type)   // Show toast notification
+loadUsers()                // Load users with permissions
+removeUser(userId)         // Remove user permission
+```
+
+**Integration with BX24 SDK**:
+- Uses `window.parent.BX24` to access SDK from iframe
+- Loads employee list with pagination (50 per page)
+- Sorts employees by last name
+- Supports up to 1000 employees (20 pages)
 
 ---
 
@@ -714,6 +884,10 @@ bot_settings (key, value, updated_at)
 query_logs (id, user_id, username, query_text, platform, timestamp)
 answer_logs (id, query_log_id FK, faq_id FK, similarity_score, answer_shown, timestamp)
 rating_logs (id, answer_log_id FK, user_id, rating, timestamp)
+
+-- Bitrix24 Integration
+bitrix24_permissions (id, domain, user_id, user_name, role, created_at, created_by)
+bitrix24_tokens (domain PK, access_token, refresh_token, expires_at, member_id, client_endpoint, updated_at)
 ```
 
 ### Detailed Schemas
@@ -782,6 +956,36 @@ CREATE TABLE rating_logs (
 );
 ```
 
+**bitrix24_permissions**:
+```sql
+CREATE TABLE bitrix24_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain TEXT NOT NULL,              -- Bitrix24 domain (e.g., company.bitrix24.ru)
+    user_id TEXT NOT NULL,             -- Bitrix24 user ID
+    user_name TEXT,                    -- User's full name
+    role TEXT NOT NULL CHECK(role IN ('admin', 'observer')),  -- User role
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by TEXT,                   -- ID of user who granted permission
+    UNIQUE(domain, user_id)            -- One permission per user per domain
+);
+
+CREATE INDEX idx_bitrix24_permissions_domain ON bitrix24_permissions(domain);
+CREATE INDEX idx_bitrix24_permissions_user ON bitrix24_permissions(domain, user_id);
+```
+
+**bitrix24_tokens**:
+```sql
+CREATE TABLE bitrix24_tokens (
+    domain TEXT PRIMARY KEY,           -- Bitrix24 domain (unique)
+    access_token TEXT NOT NULL,        -- OAuth access token
+    refresh_token TEXT NOT NULL,       -- OAuth refresh token
+    expires_at INTEGER NOT NULL,       -- Token expiration (Unix timestamp in ms)
+    member_id TEXT,                    -- Bitrix24 member ID
+    client_endpoint TEXT,              -- REST API endpoint
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
 ### ChromaDB Collections
 
 **Collection Name**: `faq_collection`
@@ -829,7 +1033,7 @@ MODEL_NAME=paraphrase-multilingual-MiniLM-L12-v2
 SIMILARITY_THRESHOLD=45  # 0-100
 ```
 
-**Optional (Bitrix24)**:
+**Optional (Bitrix24 Bot)**:
 ```bash
 BITRIX24_WEBHOOK=https://your-domain.bitrix24.ru/rest/1/webhook_key/
 BITRIX24_BOT_CODE=FAQBot
@@ -838,6 +1042,30 @@ BITRIX24_CLIENT_ID=vntu29my52f21kbrx5jzjzctktvgvnbi  # String
 BITRIX24_HANDLER_URL=https://your-domain.com/webhook/bitrix24
 BITRIX24_BOT_NAME=FAQ Помощник
 BITRIX24_PORT=5002
+```
+
+**Optional (Bitrix24 Admin Panel Integration)**:
+```bash
+# OAuth credentials (obtained from Bitrix24 app registration)
+BITRIX24_CLIENT_ID=local.xxxxxxxxxx.xxxxxxxx
+BITRIX24_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
+
+# URLs (use your public domain)
+BITRIX24_REDIRECT_URI=https://your-domain.com/bitrix24/callback
+BITRIX24_ADMIN_URL=https://your-domain.com/bitrix24/app
+
+# Bitrix24 portal domain (WITHOUT https://)
+BITRIX24_DOMAIN=your-company.bitrix24.ru
+
+# Additional allowed CORS domains (comma-separated, optional)
+ALLOWED_ORIGINS=https://test.bitrix24.com,https://dev.bitrix24.ru
+
+# JWT secrets (generate random strings, minimum 32 characters)
+JWT_SECRET=your_super_secret_jwt_key_here
+REFRESH_SECRET=your_super_secret_refresh_key_here
+
+# Environment mode (development | production)
+ENVIRONMENT=development
 ```
 
 **Optional (Advanced)**:

@@ -4,6 +4,7 @@ Flask веб-приложение для управления FAQ и перео�
 """
 
 from flask import Flask, Blueprint, render_template, request, jsonify, redirect, url_for, make_response
+from flask_cors import CORS
 import uuid
 import sys
 import logging
@@ -19,6 +20,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from src.core import database
 from src.core import logging_config
+from src.web.middleware import get_allowed_origins, is_production, cors_origin_validator
+from src.web.bitrix24_integration import handle_install, handle_index, handle_app
+from src.web.bitrix24_permissions import bitrix24_permissions_bp
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -31,9 +35,45 @@ from chromadb.utils import embedding_functions
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
+# Настройка CORS для работы с Битрикс24
+# Получаем список разрешённых origins
+allowed_origins = get_allowed_origins()
+
+# Если список пустой, добавляем wildcard для development
+if not allowed_origins or not is_production():
+    # В development разрешаем все origins
+    allowed_origins = ['*']
+
+CORS(app,
+     origins=allowed_origins,
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+)
+
 logging_config.configure_root_logger(level=logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+# Security headers для работы в iframe Битрикс24
+@app.after_request
+def set_security_headers(response):
+    """Устанавливаем security headers для работы в iframe"""
+
+    # Content Security Policy для iframe
+    if is_production():
+        # В production строго ограничиваем
+        bitrix_domain = os.getenv('BITRIX24_DOMAIN', '')
+        if bitrix_domain:
+            response.headers['Content-Security-Policy'] = (
+                f"frame-ancestors 'self' https://{bitrix_domain} https://*.bitrix24.ru https://*.bitrix24.com;"
+            )
+    else:
+        # В development разрешаем любые iframe для тестирования
+        response.headers['Content-Security-Policy'] = "frame-ancestors *;"
+
+    return response
 
 # Конфигурация
 MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
@@ -459,6 +499,16 @@ def reset_settings():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+# ========== ПРАВА ДОСТУПА BITRIX24 ==========
+
+@admin_bp.route('/permissions')
+def permissions_page():
+    """Страница управления правами доступа Bitrix24"""
+    # Получаем домен из .env
+    domain = os.getenv('BITRIX24_DOMAIN', 'b24.virtex-food.ru')
+    return render_template('admin/permissions.html', domain=domain)
+
+
 # ========== ЛОГИРОВАНИЕ ==========
 
 @admin_bp.route('/logs')
@@ -753,6 +803,29 @@ def public_feedback():
         logger.error(f"Ошибка при сохранении обратной связи: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
+
+# ========== BITRIX24 INTEGRATION ==========
+
+@app.route('/bitrix24/install', methods=['GET', 'POST'])
+def bitrix24_install():
+    """Обработчик установки приложения Битрикс24"""
+    return handle_install(request)
+
+
+@app.route('/bitrix24/index', methods=['GET', 'POST'])
+def bitrix24_index():
+    """Обработчик первого открытия приложения Битрикс24"""
+    return handle_index(request)
+
+
+@app.route('/bitrix24/app', methods=['GET', 'POST'])
+def bitrix24_app():
+    """Страница встраиваемого приложения Битрикс24"""
+    return handle_app(request)
+
+
+# Регистрируем Blueprint для управления правами Битрикс24
+app.register_blueprint(bitrix24_permissions_bp, url_prefix='/api/bitrix24/permissions')
 
 # Регистрируем Blueprint админки
 app.register_blueprint(admin_bp)

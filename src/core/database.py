@@ -696,3 +696,171 @@ def get_statistics() -> Dict:
     except Exception as e:
         print(f"Ошибка при получении статистики: {e}")
         return {}
+
+
+# ============================================
+# Функции для работы с правами Битрикс24
+# ============================================
+
+def check_bitrix24_permission(domain: str, user_id: str) -> Optional[Dict]:
+    """
+    Проверить права пользователя Битрикс24
+
+    :param domain: Домен портала Битрикс24
+    :param user_id: ID пользователя в Битрикс24
+    :return: Dict с ролью пользователя {'role': 'admin'} или None если нет прав
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT role FROM bitrix24_permissions WHERE domain = ? AND user_id = ?",
+                (domain, user_id)
+            )
+            row = cursor.fetchone()
+
+            if row:
+                return {"role": row["role"]}
+            return None
+
+    except Exception as e:
+        print(f"Ошибка при проверке прав Битрикс24: {e}")
+        return None
+
+
+def add_bitrix24_permission(
+    domain: str,
+    user_id: str,
+    user_name: str,
+    role: str,
+    created_by: str
+) -> bool:
+    """
+    Добавить или обновить права пользователя Битрикс24
+
+    :param domain: Домен портала Битрикс24
+    :param user_id: ID пользователя в Битрикс24
+    :param user_name: ФИО пользователя
+    :param role: Роль ('admin' или 'observer')
+    :param created_by: ID пользователя, который выдал права
+    :return: True если успешно, False при ошибке
+    """
+    if role not in ['admin', 'observer']:
+        print(f"Ошибка: недопустимая роль '{role}'. Разрешены только 'admin' и 'observer'")
+        return False
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, есть ли уже права у этого пользователя
+            cursor.execute(
+                "SELECT id FROM bitrix24_permissions WHERE domain = ? AND user_id = ?",
+                (domain, user_id)
+            )
+            existing = cursor.fetchone()
+
+            if existing:
+                # Обновляем существующие права
+                cursor.execute(
+                    "UPDATE bitrix24_permissions SET role = ?, user_name = ? WHERE domain = ? AND user_id = ?",
+                    (role, user_name, domain, user_id)
+                )
+                print(f"Обновлены права пользователя {user_name} ({user_id}) на портале {domain}: роль {role}")
+            else:
+                # Добавляем новые права
+                cursor.execute(
+                    """INSERT INTO bitrix24_permissions
+                       (domain, user_id, user_name, role, created_by)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (domain, user_id, user_name, role, created_by)
+                )
+                print(f"Добавлены права пользователю {user_name} ({user_id}) на портале {domain}: роль {role}")
+
+            return True
+
+    except Exception as e:
+        print(f"Ошибка при добавлении прав Битрикс24: {e}")
+        return False
+
+
+def get_bitrix24_permissions(domain: str) -> List[Dict]:
+    """
+    Получить список всех пользователей с правами для портала
+
+    :param domain: Домен портала Битрикс24
+    :return: Список пользователей с правами
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT id, user_id, user_name, role, created_at, created_by
+                   FROM bitrix24_permissions
+                   WHERE domain = ?
+                   ORDER BY created_at DESC""",
+                (domain,)
+            )
+
+            permissions = []
+            for row in cursor.fetchall():
+                permissions.append({
+                    "id": row["id"],
+                    "user_id": row["user_id"],
+                    "user_name": row["user_name"],
+                    "role": row["role"],
+                    "created_at": convert_utc_to_utc7(row["created_at"]),
+                    "created_by": row["created_by"]
+                })
+
+            return permissions
+
+    except Exception as e:
+        print(f"Ошибка при получении списка прав Битрикс24: {e}")
+        return []
+
+
+def remove_bitrix24_permission(domain: str, user_id: str) -> bool:
+    """
+    Удалить права пользователя Битрикс24
+
+    :param domain: Домен портала Битрикс24
+    :param user_id: ID пользователя в Битрикс24
+    :return: True если успешно, False при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM bitrix24_permissions WHERE domain = ? AND user_id = ?",
+                (domain, user_id)
+            )
+
+            if cursor.rowcount > 0:
+                print(f"Удалены права пользователя {user_id} на портале {domain}")
+                return True
+            else:
+                print(f"Права пользователя {user_id} на портале {domain} не найдены")
+                return False
+
+    except Exception as e:
+        print(f"Ошибка при удалении прав Битрикс24: {e}")
+        return False
+
+
+def get_all_bitrix24_domains() -> List[str]:
+    """
+    Получить список всех доменов Битрикс24, для которых есть права
+
+    :return: Список доменов
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT domain FROM bitrix24_permissions ORDER BY domain")
+
+            return [row["domain"] for row in cursor.fetchall()]
+
+    except Exception as e:
+        print(f"Ошибка при получении списка доменов Битрикс24: {e}")
+        return []

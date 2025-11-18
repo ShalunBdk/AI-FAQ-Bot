@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html class="light" lang="ru">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Права доступа - Панель администратора</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#2b8cee",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                },
+            },
+        }
+    </script>
+
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+
+        /* Toast Notifications */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            min-width: 300px;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+            background: white;
+            border-left: 4px solid;
+        }
+
+        .toast.success {
+            border-left-color: #10b981;
+        }
+
+        .toast.error {
+            border-left-color: #ef4444;
+        }
+
+        .toast.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .toast.info {
+            border-left-color: #3b82f6;
+        }
+
+        .toast-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .toast.success .toast-icon {
+            color: #10b981;
+        }
+
+        .toast.error .toast-icon {
+            color: #ef4444;
+        }
+
+        .toast.warning .toast-icon {
+            color: #f59e0b;
+        }
+
+        .toast.info .toast-icon {
+            color: #3b82f6;
+        }
+
+        .toast-message {
+            flex: 1;
+            color: #1f2937;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .toast-close {
+            cursor: pointer;
+            color: #6b7280;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+            background: none;
+            border: none;
+            flex-shrink: 0;
+        }
+
+        .toast-close:hover {
+            color: #1f2937;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .toast.removing {
+            animation: slideOut 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen">
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="w-64 flex-shrink-0 bg-white dark:bg-[#182431] border-r border-gray-200 dark:border-gray-700 p-4">
+            <div class="flex flex-col h-full">
+                <div class="flex items-center gap-3 mb-8">
+                    <div class="bg-primary rounded-lg size-10 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-white">support_agent</span>
+                    </div>
+                    <h1 class="text-lg font-bold text-gray-800 dark:text-white">Админ-панель</h1>
+                </div>
+
+            <nav class="flex flex-col gap-2 flex-grow">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">import_contacts</span>
+                    <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">База знаний</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/logs">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">receipt_long</span>
+                    <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Логи</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="/admin/permissions">
+                    <span class="material-symbols-outlined fill">admin_panel_settings</span>
+                    <p class="text-sm font-bold leading-normal">Права доступа</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/settings">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">settings</span>
+                    <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Настройки</p>
+                </a>
+            </nav>
+        </div>
+    </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-8 overflow-y-auto">
+            <div class="max-w-7xl mx-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Управление правами доступа</h1>
+                        <p class="text-gray-600 dark:text-gray-400 mt-2">Управляйте доступом пользователей Bitrix24 к админ-панели</p>
+                    </div>
+                    <button onclick="showAddUserModal()" class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                        <span class="material-symbols-outlined">person_add</span>
+                        <span>Добавить пользователя</span>
+                    </button>
+                </div>
+
+                <!-- Информация о ролях -->
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <h3 class="font-semibold text-blue-900 dark:text-blue-200 mb-2">Роли пользователей</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div>
+                            <p class="font-medium text-blue-800 dark:text-blue-300">👑 Администратор (admin)</p>
+                            <p class="text-blue-700 dark:text-blue-400">Полный доступ: управление FAQ, логи, настройки, управление правами</p>
+                        </div>
+                        <div>
+                            <p class="font-medium text-blue-800 dark:text-blue-300">👁️ Модератор (observer)</p>
+                            <p class="text-blue-700 dark:text-blue-400">Управление FAQ и просмотр логов (без доступа к настройкам и правам)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Список пользователей -->
+                <div class="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Пользователи с правами доступа</h2>
+                    </div>
+
+                    <div id="usersLoading" class="p-8 text-center">
+                        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        <p class="mt-2 text-gray-600 dark:text-gray-400">Загрузка...</p>
+                    </div>
+
+                    <div id="usersTable" class="hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 dark:bg-gray-800">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Пользователь</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Роль</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Добавлен</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Кем</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody" class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                                    <!-- Строки заполняются через JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="usersEmpty" class="hidden p-8 text-center">
+                        <span class="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">group_off</span>
+                        <p class="mt-2 text-gray-600 dark:text-gray-400">Нет пользователей с правами</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно: Добавить пользователя -->
+    <div id="addUserModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Добавить пользователя</h3>
+            </div>
+            <div class="px-6 py-4">
+                <div id="employeesLoading" class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p class="mt-2 text-gray-600 dark:text-gray-400">Загрузка списка сотрудников...</p>
+                </div>
+
+                <form id="addUserForm" class="hidden">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Сотрудник</label>
+                        <select id="selectedEmployee" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" required>
+                            <option value="">Выберите сотрудника...</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Выберите сотрудника из списка Bitrix24</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Роль</label>
+                        <select id="newUserRole" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" required>
+                            <option value="observer">Модератор (observer)</option>
+                            <option value="admin">Администратор (admin)</option>
+                        </select>
+                    </div>
+
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" onclick="hideAddUserModal()" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            Отмена
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                            Добавить
+                        </button>
+                    </div>
+                </form>
+
+                <div id="employeesError" class="hidden text-center py-8">
+                    <p class="text-red-600 dark:text-red-400" id="employeesErrorMessage"></p>
+                    <button onclick="fetchEmployees()" class="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                        Повторить попытку
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script>
+        // Глобальные переменные
+        let currentDomain = '{{ domain }}';
+        let currentUserId = null;
+        let employees = [];
+        let loadingEmployees = false;
+
+        // Toast уведомления
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            const icons = {
+                success: 'check_circle',
+                error: 'error',
+                warning: 'warning',
+                info: 'info'
+            };
+
+            toast.innerHTML = `
+                <span class="material-symbols-outlined toast-icon">${icons[type] || icons.info}</span>
+                <div class="toast-message">${message}</div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+
+            container.appendChild(toast);
+
+            // Автоматически удалить через 5 секунд
+            setTimeout(() => {
+                toast.classList.add('removing');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        // Загрузка списка пользователей
+        async function loadUsers() {
+            try {
+                const response = await fetch(`/api/bitrix24/permissions/list?domain=${encodeURIComponent(currentDomain)}`);
+                const data = await response.json();
+
+                document.getElementById('usersLoading').classList.add('hidden');
+
+                if (data.permissions && data.permissions.length > 0) {
+                    document.getElementById('usersTable').classList.remove('hidden');
+                    document.getElementById('usersEmpty').classList.add('hidden');
+
+                    const tbody = document.getElementById('usersTableBody');
+                    tbody.innerHTML = '';
+
+                    data.permissions.forEach(user => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10 bg-primary/20 rounded-full flex items-center justify-center">
+                                        <span class="material-symbols-outlined text-primary">person</span>
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">${user.user_name || 'Без имени'}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-500 dark:text-gray-400">${user.user_id}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'}">
+                                    ${user.role === 'admin' ? '👑 Администратор' : '👁️ Модератор'}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                ${formatDate(user.created_at)}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                ID: ${user.created_by || 'N/A'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button onclick="removeUser('${user.user_id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                    Удалить
+                                </button>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    document.getElementById('usersTable').classList.add('hidden');
+                    document.getElementById('usersEmpty').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки пользователей:', error);
+                showToast('Ошибка загрузки списка пользователей', 'error');
+            }
+        }
+
+        // Форматирование даты
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            return date.toLocaleString('ru-RU', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Загрузка списка сотрудников из Bitrix24
+        async function fetchEmployees() {
+            if (loadingEmployees) return;
+
+            try {
+                loadingEmployees = true;
+                document.getElementById('employeesLoading').classList.remove('hidden');
+                document.getElementById('addUserForm').classList.add('hidden');
+                document.getElementById('employeesError').classList.add('hidden');
+
+                // Проверяем доступность BX24 SDK
+                if (!window.parent.BX24) {
+                    throw new Error('Bitrix24 SDK недоступен. Приложение должно быть открыто через Bitrix24.');
+                }
+
+                const allEmployees = [];
+
+                // Первый запрос для получения первой страницы и определения общего количества
+                const firstBatch = await new Promise((resolve, reject) => {
+                    window.parent.BX24.callMethod('user.get', {
+                        start: 0,
+                        order: { LAST_NAME: 'ASC' }
+                    }, (result) => {
+                        if (result.error()) {
+                            reject(result.error());
+                        } else {
+                            resolve(result);
+                        }
+                    });
+                });
+
+                const firstData = firstBatch.data();
+                allEmployees.push(...firstData);
+
+                // Проверяем, есть ли еще данные
+                if (firstBatch.more && firstBatch.more()) {
+                    const total = firstBatch.total ? firstBatch.total() : 1000;
+                    const pagesNeeded = Math.ceil(total / 50) - 1;
+
+                    // Создаем пакет запросов для параллельной загрузки
+                    const batchCalls = {};
+                    for (let i = 1; i <= Math.min(pagesNeeded, 20); i++) {
+                        batchCalls[`page${i}`] = ['user.get', {
+                            start: i * 50,
+                            order: { LAST_NAME: 'ASC' }
+                        }];
+                    }
+
+                    // Выполняем пакетный запрос
+                    const batchResult = await new Promise((resolve) => {
+                        window.parent.BX24.callBatch(batchCalls, (result) => {
+                            resolve(result);
+                        });
+                    });
+
+                    // Собираем данные из всех ответов
+                    for (const key in batchResult) {
+                        const pageResult = batchResult[key];
+
+                        if (pageResult && typeof pageResult.error === 'function' && pageResult.error()) {
+                            continue;
+                        }
+
+                        if (pageResult && typeof pageResult.data === 'function') {
+                            const data = pageResult.data();
+                            if (data && Array.isArray(data) && data.length > 0) {
+                                allEmployees.push(...data);
+                            }
+                        }
+                    }
+                }
+
+                // Сортируем сотрудников по фамилии
+                allEmployees.sort((a, b) => {
+                    const lastNameA = (a.LAST_NAME || '').toLowerCase();
+                    const lastNameB = (b.LAST_NAME || '').toLowerCase();
+                    if (lastNameA < lastNameB) return -1;
+                    if (lastNameA > lastNameB) return 1;
+                    const nameA = (a.NAME || '').toLowerCase();
+                    const nameB = (b.NAME || '').toLowerCase();
+                    return nameA.localeCompare(nameB);
+                });
+
+                employees = allEmployees;
+
+                // Заполняем select
+                const select = document.getElementById('selectedEmployee');
+                select.innerHTML = '<option value="">Выберите сотрудника...</option>';
+
+                employees.forEach(employee => {
+                    const fullName = `${employee.LAST_NAME || ''} ${employee.NAME || ''}`.trim();
+                    const option = document.createElement('option');
+                    option.value = employee.ID;
+                    option.textContent = fullName || `ID: ${employee.ID}`;
+                    option.dataset.lastName = employee.LAST_NAME || '';
+                    option.dataset.name = employee.NAME || '';
+                    select.appendChild(option);
+                });
+
+                document.getElementById('employeesLoading').classList.add('hidden');
+                document.getElementById('addUserForm').classList.remove('hidden');
+                loadingEmployees = false;
+
+            } catch (err) {
+                console.error('Ошибка загрузки сотрудников:', err);
+                document.getElementById('employeesLoading').classList.add('hidden');
+                document.getElementById('employeesError').classList.remove('hidden');
+                document.getElementById('employeesErrorMessage').textContent =
+                    `Ошибка при загрузке сотрудников: ${err.error_description || err.message || 'Неизвестная ошибка'}`;
+                loadingEmployees = false;
+            }
+        }
+
+        // Модальное окно
+        function showAddUserModal() {
+            document.getElementById('addUserModal').classList.remove('hidden');
+
+            // Загружаем список сотрудников при открытии
+            if (employees.length === 0 && !loadingEmployees) {
+                fetchEmployees();
+            } else if (employees.length > 0) {
+                document.getElementById('employeesLoading').classList.add('hidden');
+                document.getElementById('addUserForm').classList.remove('hidden');
+            }
+        }
+
+        function hideAddUserModal() {
+            document.getElementById('addUserModal').classList.add('hidden');
+            document.getElementById('addUserForm').reset();
+        }
+
+        // Добавление пользователя
+        document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const selectedEmployeeId = document.getElementById('selectedEmployee').value;
+            const role = document.getElementById('newUserRole').value;
+
+            if (!selectedEmployeeId) {
+                showToast('Выберите сотрудника', 'warning');
+                return;
+            }
+
+            // Находим выбранного сотрудника
+            const employee = employees.find(e => e.ID === selectedEmployeeId);
+            if (!employee) {
+                showToast('Сотрудник не найден', 'error');
+                return;
+            }
+
+            const userName = `${employee.LAST_NAME || ''} ${employee.NAME || ''}`.trim();
+
+            try {
+                const response = await fetch('/api/bitrix24/permissions/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        domain: currentDomain,
+                        user_id: employee.ID,
+                        user_name: userName,
+                        role: role,
+                        created_by: currentUserId || '0'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showToast('Пользователь успешно добавлен!', 'success');
+                    hideAddUserModal();
+                    loadUsers();
+                } else {
+                    showToast('Ошибка: ' + (data.error || 'Не удалось добавить пользователя'), 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка добавления пользователя:', error);
+                showToast('Ошибка при добавлении пользователя', 'error');
+            }
+        });
+
+        // Удаление пользователя
+        async function removeUser(userId) {
+            if (!confirm(`Вы уверены, что хотите удалить права пользователя ID ${userId}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/bitrix24/permissions/remove', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        domain: currentDomain,
+                        user_id: userId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showToast('Права пользователя успешно удалены!', 'success');
+                    loadUsers();
+                } else {
+                    showToast('Ошибка: ' + (data.error || 'Не удалось удалить права'), 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка удаления пользователя:', error);
+                showToast('Ошибка при удалении прав пользователя', 'error');
+            }
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Получаем домен из .env или используем по умолчанию
+            if (!currentDomain) {
+                currentDomain = 'b24.virtex-food.ru'; // Замените на ваш домен
+            }
+
+            // Пытаемся получить текущего пользователя из Bitrix24 (если открыто через iframe)
+            try {
+                if (window.parent && window.parent.BX24) {
+                    const currentUser = await new Promise((resolve, reject) => {
+                        window.parent.BX24.callMethod('user.current', {}, (result) => {
+                            if (result.error()) {
+                                reject(result.error());
+                            } else {
+                                resolve(result.data());
+                            }
+                        });
+                    });
+
+                    if (currentUser && currentUser.ID) {
+                        currentUserId = currentUser.ID;
+                    }
+                }
+            } catch (err) {
+                console.log('Не удалось получить текущего пользователя Bitrix24:', err);
+                // Не критично, продолжаем работу
+            }
+
+            loadUsers();
+        });
+    </script>
+</body>
+</html>
