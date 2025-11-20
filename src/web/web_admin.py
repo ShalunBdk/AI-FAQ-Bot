@@ -68,29 +68,42 @@ def set_security_headers(response):
         if bitrix_domain:
             response.headers['Content-Security-Policy'] = (
                 f"frame-ancestors 'self' https://{bitrix_domain} https://*.bitrix24.ru https://*.bitrix24.com;"
+                f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net/ https://api.bitrix24.com/; "
+                f"style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net/; "
+                f"font-src 'self' https://fonts.gstatic.com;"
             )
     else:
-        # В development разрешаем любые iframe для тестирования
-        response.headers['Content-Security-Policy'] = "frame-ancestors *;"
+        # В development разрешаем все для тестирования
+        response.headers['Content-Security-Policy'] = (
+            "frame-ancestors *; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net/ https://api.bitrix24.com/; "
+            "style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net/; "
+            "font-src 'self' https://fonts.gstatic.com;"
+        )
 
     return response
 
 # Конфигурация
 MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 
-# Эндпоинты для уведомления ботов
-TELEGRAM_BOT_RELOAD_URL = "http://127.0.0.1:5001/reload"  # Telegram бот
-TELEGRAM_BOT_RELOAD_SETTINGS_URL = "http://127.0.0.1:5001/reload-settings"
+# Эндпоинты для уведомления ботов (поддержка Docker и localhost)
+# В Docker используем имена контейнеров из переменных окружения
+TELEGRAM_BOT_HOST = os.getenv('TELEGRAM_BOT_HOST', '127.0.0.1')
+BITRIX24_BOT_HOST = os.getenv('BITRIX24_BOT_HOST', '127.0.0.1')
 
-BITRIX24_BOT_RELOAD_URL = "http://127.0.0.1:5002/api/reload-chromadb"  # Bitrix24 бот
-BITRIX24_BOT_RELOAD_SETTINGS_URL = "http://127.0.0.1:5002/api/reload-settings"  # Bitrix24 бот настройки
+TELEGRAM_BOT_RELOAD_URL = f"http://{TELEGRAM_BOT_HOST}:5001/reload"
+TELEGRAM_BOT_RELOAD_SETTINGS_URL = f"http://{TELEGRAM_BOT_HOST}:5001/reload-settings"
+
+BITRIX24_BOT_RELOAD_URL = f"http://{BITRIX24_BOT_HOST}:5002/api/reload-chromadb"
+BITRIX24_BOT_RELOAD_SETTINGS_URL = f"http://{BITRIX24_BOT_HOST}:5002/api/reload-settings"
 
 # Список всех ботов для уведомления
 ALL_BOT_RELOAD_URLS = [TELEGRAM_BOT_RELOAD_URL, BITRIX24_BOT_RELOAD_URL]
 ALL_BOT_RELOAD_SETTINGS_URLS = [TELEGRAM_BOT_RELOAD_SETTINGS_URL, BITRIX24_BOT_RELOAD_SETTINGS_URL]
 
-# Инициализация ChromaDB
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
+# Инициализация ChromaDB (поддержка Docker путей)
+CHROMA_PATH = os.getenv('CHROMA_PATH', './chroma_db')
+chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL_NAME)
 
 # Создаем Blueprint для админ-панели
@@ -505,7 +518,7 @@ def reset_settings():
 def permissions_page():
     """Страница управления правами доступа Bitrix24"""
     # Получаем домен из .env
-    domain = os.getenv('BITRIX24_DOMAIN', 'b24.virtex-food.ru')
+    domain = os.getenv('BITRIX24_DOMAIN', 'your-company.bitrix24.ru')
     return render_template('admin/permissions.html', domain=domain)
 
 

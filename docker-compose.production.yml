@@ -1,0 +1,138 @@
+# Production docker-compose для интеграции с существующей инфраструктурой
+# Использование:
+#   - По умолчанию (веб + Bitrix24): docker-compose -f docker-compose.production.yml up -d
+#   - С Telegram ботом: docker-compose -f docker-compose.production.yml --profile telegram up -d
+#   - Все сервисы: docker-compose -f docker-compose.production.yml --profile telegram up -d
+
+services:
+  # Web админка (запускается всегда)
+  faqbot-web-admin:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: faqbot-web-admin
+    command: python src/web/web_admin.py
+    restart: unless-stopped
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
+      - ANONYMIZED_TELEMETRY=False
+      - CHROMA_PATH=/app/data/chroma_db
+      - TELEGRAM_BOT_HOST=faqbot-telegram-bot
+      - BITRIX24_BOT_HOST=faqbot-bitrix24-bot
+      # Bitrix24 OAuth (если используется)
+      - BITRIX24_CLIENT_ID=${BITRIX24_OAUTH_CLIENT_ID:-}
+      - BITRIX24_CLIENT_SECRET=${BITRIX24_CLIENT_SECRET:-}
+      - BITRIX24_REDIRECT_URI=${BITRIX24_REDIRECT_URI:-}
+      - BITRIX24_ADMIN_URL=${BITRIX24_ADMIN_URL:-}
+      - BITRIX24_DOMAIN=${BITRIX24_DOMAIN:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      - JWT_SECRET=${JWT_SECRET:-change_me_in_production}
+      - REFRESH_SECRET=${REFRESH_SECRET:-change_me_in_production}
+      - SECRET_KEY=${SECRET_KEY:-change_me_in_production}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+    volumes:
+      # База данных SQLite (общая для всех сервисов)
+      - ./data/faq_database.db:/app/data/faq_database.db
+      # Векторная база ChromaDB (общая для всех сервисов)
+      - ./data/chroma_db:/app/data/chroma_db
+      # Шаблоны Flask
+      - ./src/web/templates:/app/src/web/templates
+      # Кэш моделей sentence-transformers
+      - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
+    expose:
+      - "5000"
+    networks:
+      - default
+      - nginx_default  # Подключение к сети Nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Bitrix24 бот (запускается всегда)
+  faqbot-bitrix24-bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: faqbot-bitrix24-bot
+    command: python src/bots/b24_bot.py
+    restart: unless-stopped
+    environment:
+      - BITRIX24_WEBHOOK=${BITRIX24_WEBHOOK}
+      - BITRIX24_BOT_ID=${BITRIX24_BOT_ID}
+      - BITRIX24_BOT_CLIENT_ID=${BITRIX24_BOT_CLIENT_ID}
+      - BITRIX24_HANDLER_URL=${BITRIX24_HANDLER_URL}
+      - BITRIX24_BOT_NAME=${BITRIX24_BOT_NAME:-FAQ Помощник}
+      - MODEL_NAME=${MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}
+      - ANONYMIZED_TELEMETRY=False
+    volumes:
+      # База данных SQLite (общая для всех сервисов)
+      - ./data/faq_database.db:/app/data/faq_database.db
+      # Векторная база ChromaDB (общая для всех сервисов)
+      - ./data/chroma_db:/app/data/chroma_db
+      # Кэш моделей sentence-transformers
+      - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
+    expose:
+      - "5002"
+    networks:
+      - default
+      - nginx_default  # Подключение к сети Nginx
+    depends_on:
+      - faqbot-web-admin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Telegram бот (опционально - запускается только с --profile telegram)
+  faqbot-telegram-bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: faqbot-telegram-bot
+    command: python src/bots/bot.py
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - MODEL_NAME=${MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}
+      - ANONYMIZED_TELEMETRY=False
+    volumes:
+      # База данных SQLite (общая для всех сервисов)
+      - ./data/faq_database.db:/app/data/faq_database.db
+      # Векторная база ChromaDB (общая для всех сервисов)
+      - ./data/chroma_db:/app/data/chroma_db
+      # Кэш моделей sentence-transformers
+      - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
+    expose:
+      - "5001"
+    networks:
+      - default
+      - nginx_default  # Подключение к сети Nginx
+    depends_on:
+      - faqbot-web-admin
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - telegram  # Опциональный сервис - запускается только с --profile telegram
+
+networks:
+  # Внутренняя сеть для FAQ-бота
+  default:
+    driver: bridge
+  # Подключение к существующей сети Nginx
+  nginx_default:
+    external: true
+
+volumes:
+  # Named volume для кэша моделей
+  sentence-transformers-cache:

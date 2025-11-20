@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 BITRIX24_WEBHOOK = os.getenv("BITRIX24_WEBHOOK")
 BITRIX24_BOT_ID = os.getenv("BITRIX24_BOT_ID")  # Числовой BOT_ID для регистрации команд
-BITRIX24_CLIENT_ID = os.getenv("BITRIX24_CLIENT_ID")  # Строковый CLIENT_ID для API запросов
+BITRIX24_BOT_CLIENT_ID = os.getenv("BITRIX24_BOT_CLIENT_ID")  # Строковый CLIENT_ID бота для API запросов
 BITRIX24_HANDLER_URL = os.getenv("BITRIX24_HANDLER_URL", "https://your-server.com/webhook/bitrix24")
 MODEL_NAME = os.getenv("MODEL_NAME", "paraphrase-multilingual-MiniLM-L12-v2")
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "45.0"))
@@ -607,7 +607,7 @@ def webhook_handler():
         global b24_api
         if not b24_api and BITRIX24_WEBHOOK:
             logger.debug(f"🔧 Инициализация Bitrix24 API с вебхуком: {BITRIX24_WEBHOOK[:50]}...")
-            logger.debug(f"🔧 CLIENT_ID: {BITRIX24_CLIENT_ID}")
+            logger.debug(f"🔧 CLIENT_ID: {BITRIX24_BOT_CLIENT_ID}")
             logger.debug(f"🔧 BOT_ID: {BITRIX24_BOT_ID}")
 
             # Преобразуем BOT_ID в число
@@ -619,7 +619,7 @@ def webhook_handler():
                     logger.warning(f"⚠️ BITRIX24_BOT_ID '{BITRIX24_BOT_ID}' не является числом")
 
             # Используем CLIENT_ID для API запросов
-            b24_api = Bitrix24API(BITRIX24_WEBHOOK, BITRIX24_CLIENT_ID, bot_id)
+            b24_api = Bitrix24API(BITRIX24_WEBHOOK, BITRIX24_BOT_CLIENT_ID, bot_id)
 
             # Регистрируем команды для кнопок (один раз при старте)
             logger.info("📝 Регистрация команд для кнопок...")

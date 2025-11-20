@@ -27,6 +27,12 @@
                     fontFamily: {
                         "display": ["Inter", "sans-serif"]
                     },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
                 },
             },
         }
@@ -632,7 +638,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // Получаем домен из .env или используем по умолчанию
             if (!currentDomain) {
-                currentDomain = 'b24.virtex-food.ru'; // Замените на ваш домен
+                currentDomain = 'your-company.bitrix24.ru'; // Замените на ваш домен
             }
 
             // Пытаемся получить текущего пользователя из Bitrix24 (если открыто через iframe)

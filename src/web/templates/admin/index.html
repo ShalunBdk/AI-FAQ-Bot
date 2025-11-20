@@ -96,19 +96,19 @@
             </div>
 
             <nav class="flex flex-col gap-2 flex-grow">
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="/admin/">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="./">
                     <span class="material-symbols-outlined fill">import_contacts</span>
                     <p class="text-sm font-bold leading-normal">База знаний</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/logs">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="./logs">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">receipt_long</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Логи</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/permissions">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="./permissions">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">admin_panel_settings</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Права доступа</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/settings">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="./settings">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">settings</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Настройки</p>
                 </a>
@@ -285,6 +285,9 @@
 </div>
 
 <script>
+    // Базовый URL для API запросов (относительный путь от текущей страницы)
+    const BASE_URL = '.';
+
     let currentEditId = null;
     let isSearchActive = false;
     let currentSearchData = null;
@@ -463,9 +466,9 @@
         try {
             let response;
             if (searchType === 'text') {
-                response = await fetch(`/admin/search?q=${encodeURIComponent(query)}`);
+                response = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(query)}`);
             } else {
-                response = await fetch('/admin/search/semantic', {
+                response = await fetch(`${BASE_URL}/search/semantic`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({query: query, n_results: 20})
@@ -517,7 +520,7 @@
     async function loadFAQs(category = '') {
         if (isSearchActive) return;
 
-        const url = category ? `/admin/faq/list?category=${category}` : '/admin/faq/list';
+        const url = category ? `${BASE_URL}/faq/list?category=${category}` : '/admin/faq/list';
         const response = await fetch(url);
         const faqs = await response.json();
 
@@ -596,7 +599,7 @@
         select.innerHTML = '<option value="">Выберите категорию</option>';
 
         try {
-            const response = await fetch('/admin/categories');
+            const response = await fetch(`${BASE_URL}/categories`);
             if (!response.ok) throw new Error('Ошибка загрузки категорий');
 
             const categories = await response.json();
@@ -624,7 +627,7 @@
     }
 
     async function editFAQ(id) {
-        const response = await fetch(`/admin/faq/${id}`);
+        const response = await fetch(`${BASE_URL}/faq/${id}`);
         const faq = await response.json();
 
         currentEditId = id;
@@ -665,7 +668,7 @@
             return;
         }
 
-        const response = await fetch('/admin/categories', {
+        const response = await fetch(`${BASE_URL}/categories`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ name })
@@ -696,13 +699,13 @@
 
         let response;
         if (currentEditId) {
-            response = await fetch(`/admin/faq/update/${currentEditId}`, {
+            response = await fetch(`${BASE_URL}/faq/update/${currentEditId}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)
             });
         } else {
-            response = await fetch('/admin/faq/add', {
+            response = await fetch(`${BASE_URL}/faq/add`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)
@@ -723,7 +726,7 @@
     async function deleteFAQ(id) {
         if (!confirm('Вы уверены, что хотите удалить этот FAQ?')) return;
 
-        const response = await fetch(`/admin/faq/delete/${id}`, {
+        const response = await fetch(`${BASE_URL}/faq/delete/${id}`, {
             method: 'DELETE'
         });
 
@@ -742,7 +745,7 @@
 
         showNotification('Переобучение модели...', 'info');
 
-        const response = await fetch('/admin/retrain', {
+        const response = await fetch(`${BASE_URL}/retrain`, {
             method: 'POST'
         });
 
