@@ -34,6 +34,7 @@ from chromadb.utils import embedding_functions
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
+app.config['BASE_PATH'] = os.getenv('BASE_PATH', '')  # Для reverse proxy (напр. /faqbot)
 
 # Настройка CORS для работы с Битрикс24
 # Получаем список разрешённых origins

@@ -216,12 +216,14 @@
             const iframe = document.getElementById('admin-iframe');
 
             // Определяем URL в зависимости от роли
+            // Используем BASE_PATH для поддержки reverse proxy
+            const basePath = '{{ config.get("BASE_PATH", "") }}';
             if (role === 'admin') {
                 // Админ может все
-                iframe.src = '/admin/?token=' + accessToken;
+                iframe.src = basePath + '/admin/?token=' + accessToken;
             } else if (role === 'observer') {
                 // Модератор может редактировать FAQ и смотреть логи
-                iframe.src = '/admin/?token=' + accessToken;
+                iframe.src = basePath + '/admin/?token=' + accessToken;
             }
 
             // Автоматическая подстройка размера

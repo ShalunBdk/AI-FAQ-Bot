@@ -30,6 +30,7 @@ services:
       - REFRESH_SECRET=${REFRESH_SECRET:-change_me_in_production}
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production}
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - BASE_PATH=${BASE_PATH:-}
     volumes:
       # База данных SQLite (общая для всех сервисов)
       - ./data/faq_database.db:/app/data/faq_database.db
