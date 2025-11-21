@@ -197,7 +197,7 @@
                         <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Управление правами доступа</h1>
                         <p class="text-gray-600 dark:text-gray-400 mt-2">Управляйте доступом пользователей Bitrix24 к админ-панели</p>
                     </div>
-                    <button onclick="showAddUserModal()" class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                    <button id="addUserSection" onclick="showAddUserModal()" class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
                         <span class="material-symbols-outlined">person_add</span>
                         <span>Добавить пользователя</span>
                     </button>
@@ -314,6 +314,7 @@
         // Глобальные переменные
         let currentDomain = '{{ domain }}';
         let currentUserId = null;
+        let currentUserRole = null;
         let employees = [];
         let loadingEmployees = false;
 
@@ -390,9 +391,9 @@
                                 ID: ${user.created_by || 'N/A'}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button onclick="removeUser('${user.user_id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                ${currentUserRole === 'admin' ? `<button onclick="removeUser('${user.user_id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                                     Удалить
-                                </button>
+                                </button>` : ''}
                             </td>
                         `;
                         tbody.appendChild(row);
@@ -616,7 +617,8 @@
                     },
                     body: JSON.stringify({
                         domain: currentDomain,
-                        user_id: userId
+                        user_id: userId,
+                        caller_id: currentUserId || '0'
                     })
                 });
 
@@ -656,11 +658,24 @@
 
                     if (currentUser && currentUser.ID) {
                         currentUserId = currentUser.ID;
+
+                        // Проверяем роль текущего пользователя
+                        const permCheck = await fetch(`/api/bitrix24/permissions/check?domain=${encodeURIComponent(currentDomain)}&user_id=${currentUserId}`);
+                        const permData = await permCheck.json();
+                        if (permData.hasPermission) {
+                            currentUserRole = permData.role;
+                        }
                     }
                 }
             } catch (err) {
                 console.log('Не удалось получить текущего пользователя Bitrix24:', err);
                 // Не критично, продолжаем работу
+            }
+
+            // Скрываем управление правами для не-админов
+            if (currentUserRole !== 'admin') {
+                const addUserSection = document.getElementById('addUserSection');
+                if (addUserSection) addUserSection.style.display = 'none';
             }
 
             loadUsers();

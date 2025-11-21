@@ -105,7 +105,7 @@
 
         <!-- Admin Panel (для admin и observer) -->
         <div id="admin-panel">
-            <iframe id="admin-iframe" src="" width="100%" frameborder="0" style="height: 800px; border: none;"></iframe>
+            <iframe id="admin-iframe" src="" width="100%" frameborder="0" style="height: calc(100vh - 50px); min-height: 600px; border: none;"></iframe>
         </div>
     </div>
 
@@ -242,15 +242,27 @@
         }
 
         function setupIframeResize(iframe) {
-            // Устанавливаем фиксированную высоту для iframe
-            iframe.style.height = '800px';
+            // Вычисляем доступную высоту окна Bitrix24
+            function updateIframeHeight() {
+                // Получаем высоту родительского окна
+                const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+                const iframeHeight = Math.max(windowHeight - 50, 600);
+                iframe.style.height = iframeHeight + 'px';
+            }
 
-            // Подстраиваем размер контейнера Bitrix24 при загрузке iframe
+            // Устанавливаем высоту при загрузке iframe
             iframe.onload = () => {
                 setTimeout(() => {
+                    updateIframeHeight();
                     BX24.fitWindow();
                 }, 300);
             };
+
+            // Обновляем при изменении размера окна
+            window.addEventListener('resize', updateIframeHeight);
+
+            // Начальная установка высоты
+            updateIframeHeight();
         }
 
         // Публичный поиск

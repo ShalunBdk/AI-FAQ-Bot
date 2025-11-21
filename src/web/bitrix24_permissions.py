@@ -13,6 +13,7 @@ from src.core.database import (
     remove_bitrix24_permission
 )
 import jwt
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -109,6 +110,12 @@ def add_permission():
         if not domain or not user_id or not role:
             return jsonify({'error': 'Domain, user_id, and role are required'}), 400
 
+        # Проверяем что вызывающий - admin
+        if created_by:
+            caller_permission = check_bitrix24_permission(domain, created_by)
+            if not caller_permission or caller_permission['role'] != 'admin':
+                return jsonify({'error': 'Only admins can manage permissions'}), 403
+
         # Validate role
         if role not in ['admin', 'observer']:
             return jsonify({'error': 'Role must be admin or observer'}), 400
@@ -139,7 +146,7 @@ def remove_permission():
     """
     Удалить права пользователя
     DELETE /api/bitrix24/permissions/remove
-    Body: {domain, user_id}
+    Body: {domain, user_id, caller_id}
 
     Возвращает:
         {"message": "Permission removed successfully"}
@@ -149,9 +156,16 @@ def remove_permission():
 
         domain = data.get('domain')
         user_id = data.get('user_id')
+        caller_id = data.get('caller_id')
 
         if not domain or not user_id:
             return jsonify({'error': 'Domain and user_id are required'}), 400
+
+        # Проверяем что вызывающий - admin
+        if caller_id:
+            caller_permission = check_bitrix24_permission(domain, caller_id)
+            if not caller_permission or caller_permission['role'] != 'admin':
+                return jsonify({'error': 'Only admins can manage permissions'}), 403
 
         success = remove_bitrix24_permission(domain, user_id)
 
@@ -209,15 +223,27 @@ def bitrix24_auth():
 
         role = permission['role']
 
-        # Генерируем JWT токены
+        # Генерируем JWT токены с exp
         access_token = jwt.encode(
-            {'id': user_id, 'username': user_name, 'role': role},
+            {
+                'id': user_id,
+                'username': user_name,
+                'role': role,
+                'domain': domain,
+                'exp': datetime.utcnow() + timedelta(minutes=15)
+            },
             JWT_SECRET,
             algorithm='HS256'
         )
 
         refresh_token = jwt.encode(
-            {'id': user_id, 'username': user_name, 'role': role},
+            {
+                'id': user_id,
+                'username': user_name,
+                'role': role,
+                'domain': domain,
+                'exp': datetime.utcnow() + timedelta(days=7)
+            },
             REFRESH_SECRET,
             algorithm='HS256'
         )
