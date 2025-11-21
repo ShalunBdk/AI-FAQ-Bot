@@ -189,6 +189,15 @@ source venv/Scripts/activate
 python scripts/test_cascade_search.py
 ```
 
+### Database Migrations
+**Все таблицы создаются автоматически** при первом запуске через `init_database()`.
+
+Миграции в `scripts/migrate_*.py` нужны только для:
+- Обновления **существующих** баз (добавления новых колонок/таблиц)
+- Разработки (history изменений схемы)
+
+При новом развёртывании миграции **не требуются**.
+
 ---
 
 ## Configuration

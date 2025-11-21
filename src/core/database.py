@@ -114,6 +114,69 @@ def init_database():
             END
         """)
 
+        # Таблица логов запросов пользователей
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS query_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                query_text TEXT NOT NULL,
+                platform TEXT DEFAULT 'telegram',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Таблица логов ответов
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS answer_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_log_id INTEGER,
+                faq_id TEXT,
+                similarity_score REAL,
+                answer_shown TEXT,
+                search_level TEXT DEFAULT 'semantic',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (query_log_id) REFERENCES query_logs(id),
+                FOREIGN KEY (faq_id) REFERENCES faq(id)
+            )
+        """)
+
+        # Таблица оценок ответов
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rating_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                answer_log_id INTEGER,
+                user_id INTEGER NOT NULL,
+                rating TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (answer_log_id) REFERENCES answer_logs(id)
+            )
+        """)
+
+        # Таблица прав доступа для Bitrix24
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bitrix24_permissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                user_name TEXT,
+                role TEXT NOT NULL CHECK(role IN ('admin', 'observer')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT,
+                UNIQUE(domain, user_id)
+            )
+        """)
+
+        # Индексы для оптимизации
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_timestamp ON query_logs(timestamp DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_user ON query_logs(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_platform ON query_logs(platform)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_faq ON answer_logs(faq_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rating_logs_rating ON rating_logs(rating)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_domain ON bitrix24_permissions(domain)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_domain_user ON bitrix24_permissions(domain, user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_role ON bitrix24_permissions(role)")
+
         print("OK: База данных инициализирована")
 
     # Инициализируем настройки бота
