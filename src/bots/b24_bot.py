@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from src.core import database
 from src.core import logging_config
 from src.api.b24_api import Bitrix24API, Bitrix24Event
+from src.core.search import find_answer, SearchResult
 
 # Загрузка конфигурации
 load_dotenv()
@@ -386,12 +387,12 @@ def handle_category_select(event: Bitrix24Event, api: Bitrix24API, category: str
 
 def handle_search_faq(event: Bitrix24Event, api: Bitrix24API, is_faq_view: bool = False):
     """
-    Поиск ответа на вопрос пользователя
+    Поиск ответа на вопрос пользователя через каскадную систему
 
     Args:
         event: Событие от Bitrix24
         api: API клиент
-        is_faq_view: True если это просмотр FAQ через кнопку (добавляет префикс в логи)
+        is_faq_view: True если это просмотр FAQ через кнопку
     """
     query_text = event.message_text
     user_id = event.user_id
@@ -399,65 +400,72 @@ def handle_search_faq(event: Bitrix24Event, api: Bitrix24API, is_faq_view: bool 
     # Показываем индикатор печатания
     api.send_typing(event.dialog_id)
 
-    # Текст для логирования (с префиксом если это просмотр FAQ)
+    # Текст для логирования
     log_query_text = f"[Просмотр FAQ] {query_text}" if is_faq_view else query_text
 
     # Логирование запроса
     query_log_id = database.add_query_log(
         user_id=user_id,
-        username=event.username,  # Используем полное имя пользователя (Фамилия Имя)
+        username=event.username,
         query_text=log_query_text,
         platform='bitrix24'
     )
 
-    # Поиск в ChromaDB (по оригинальному тексту без префикса)
-    best_match, similarity, all_results = find_best_match(query_text, n_results=3)
+    # === КАСКАДНЫЙ ПОИСК ===
+    result = find_answer(query_text, collection)
 
-
-    # Получаем текущий порог из настроек или используем дефолтный
-    threshold = SIMILARITY_THRESHOLD
-    try:
-        settings = database.get_bot_settings()
-        threshold = float(settings.get('similarity_threshold', SIMILARITY_THRESHOLD))
-    except Exception as e:
-        logger.warning(f"Не удалось получить настройки, используем дефолтный порог: {e}")
-
-    if similarity >= threshold and best_match:
+    if result.found:
         # Нашли ответ!
-        # Логируем показанный ответ
-        send_answer(event, api, best_match, similarity, all_results, query_log_id)
+        logger.info(f"✅ Ответ найден через {result.search_level} (confidence: {result.confidence:.1f}%)")
+
+        # Логируем ответ
+        answer_log_id = database.add_answer_log(
+            query_log_id=query_log_id,
+            faq_id=result.faq_id,
+            similarity_score=result.confidence,
+            answer_shown=result.answer,
+            search_level=result.search_level
+        )
+
+        # Отправляем ответ
+        send_answer(event, api, result, answer_log_id)
+
     else:
         # Ответ не найден
-        send_no_answer(event, api, similarity, all_results)
+        logger.warning(f"❌ Ответ не найден для запроса: '{query_text}'")
+
         database.add_answer_log(
             query_log_id=query_log_id,
             faq_id=None,
-            similarity_score=similarity,
-            answer_shown="Ответ не найден"
+            similarity_score=0.0,
+            answer_shown=result.message or "Ответ не найден",
+            search_level='none'
         )
 
+        send_no_answer(event, api, result.message)
 
-def send_answer(event: Bitrix24Event, api: Bitrix24API, match: Dict,
-                similarity: float, all_results: Dict, query_log_id: int):
+
+def send_answer(event: Bitrix24Event, api: Bitrix24API, result: SearchResult, answer_log_id: int):
     """Отправка найденного ответа с кнопками обратной связи"""
 
-    # Получаем ID FAQ из результатов
-    faq_id = all_results["ids"][0][0] if all_results and "ids" in all_results and all_results["ids"] else None
-
-    # Логирование ответа
-    answer_log_id = database.add_answer_log(
-        query_log_id=query_log_id,
-        faq_id=faq_id,
-        similarity_score=similarity,
-        answer_shown=match['answer']
-    )
-
     # Конвертируем ответ из HTML в BB коды для Битрикс24
-    answer_bbcode = convert_html_to_bbcode(match['answer'])
-    question_bbcode = convert_html_to_bbcode(match['question'])
+    answer_bbcode = convert_html_to_bbcode(result.answer)
+    question_bbcode = convert_html_to_bbcode(result.question)
 
     # Формируем сообщение с BB кодами
-    message = f"✅ [b]{question_bbcode}[/b]\n\n{answer_bbcode}\n\n💡 Схожесть: {similarity:.1f}%"
+    message = f"✅ [b]{question_bbcode}[/b]\n\n{answer_bbcode}"
+
+    # Добавляем процент схожести если включено в настройках
+    show_similarity = bot_settings_cache.get("show_similarity", "true") == "true"
+    if show_similarity:
+        search_level_icons = {
+            'exact': '🎯',
+            'keyword': '🔑',
+            'semantic': '🧠',
+            'direct': '📄',
+        }
+        icon = search_level_icons.get(result.search_level, '🔍')
+        message += f"\n\n{icon} Схожесть: {result.confidence:.1f}%"
 
     # Кнопки обратной связи
     yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
@@ -476,21 +484,23 @@ def send_answer(event: Bitrix24Event, api: Bitrix24API, match: Dict,
         }
     ]]
 
-    # Похожие вопросы (если есть) - добавляем как кнопки
+    # Похожие вопросы (только для semantic search)
     similar_questions_buttons = []
-    if all_results and len(all_results.get('metadatas', [[]])[0]) > 1:
-        for i in range(1, min(4, len(all_results['metadatas'][0]))):
-            sim = (1.0 - all_results['distances'][0][i]) * 100.0
-            if sim >= 30:  # Показываем только если similarity > 30%
-                meta = all_results['metadatas'][0][i]
-                question_text = meta['question']
-                # Обрезаем текст кнопки если слишком длинный
-                button_text = question_text if len(question_text) <= 60 else question_text[:57] + "..."
-                similar_questions_buttons.append([{
-                    'text': f"❓ {button_text}",
-                    'action': 'similar_question',
-                    'params': question_text  # Полный текст вопроса в параметрах
-                }])
+    if result.search_level == 'semantic' and result.all_results:
+        semantic_threshold = float(bot_settings_cache.get('semantic_match_threshold', 45))
+        if result.all_results and len(result.all_results.get('metadatas', [[]])[0]) > 1:
+            for i in range(1, min(4, len(result.all_results['metadatas'][0]))):
+                sim = (1.0 - result.all_results['distances'][0][i]) * 100.0
+                if sim >= semantic_threshold:
+                    meta = result.all_results['metadatas'][0][i]
+                    question_text = meta['question']
+                    # Обрезаем текст кнопки если слишком длинный
+                    button_text = question_text if len(question_text) <= 60 else question_text[:57] + "..."
+                    similar_questions_buttons.append([{
+                        'text': f"❓ {button_text}",
+                        'action': 'similar_question',
+                        'params': question_text  # Полный текст вопроса в параметрах
+                    }])
 
     # Объединяем кнопки: сначала feedback, потом похожие вопросы
     all_buttons = feedback_buttons
@@ -503,43 +513,21 @@ def send_answer(event: Bitrix24Event, api: Bitrix24API, match: Dict,
 
     # Отправка
     api.send_message(event.dialog_id, message, keyboard=keyboard, attach=attach)
-    logger.info(f"Отправлен ответ пользователю {event.user_id}, similarity={similarity:.1f}%")
+    logger.info(f"Отправлен ответ пользователю {event.user_id}, {result.search_level}, similarity={result.confidence:.1f}%")
 
 
-def send_no_answer(event: Bitrix24Event, api: Bitrix24API,
-                   similarity: float, all_results: Dict):
+def send_no_answer(event: Bitrix24Event, api: Bitrix24API, fallback_message: str):
     """Отправка сообщения когда ответ не найден"""
-    message = (
-        f"😔 Извините, я не нашел точного ответа на ваш вопрос "
-        f"(лучшая схожесть: {similarity:.1f}%).\n\n"
-        f"Попробуйте:\n"
-        f"• Переформулировать вопрос\n"
-        f"• Написать 'категории' для просмотра всех тем"
+    # Используем переданное сообщение из fallback
+    message = fallback_message or (
+        "😔 Извините, я не нашел точного ответа на ваш вопрос.\n\n"
+        "Попробуйте:\n"
+        "• Переформулировать вопрос\n"
+        "• Написать 'категории' для просмотра всех тем"
     )
 
-    # Показываем похожие вопросы как кнопки
-    similar_questions_buttons = []
-    if all_results and all_results.get('metadatas') and all_results['metadatas'][0]:
-        for i in range(min(3, len(all_results['metadatas'][0]))):
-            sim = (1.0 - all_results['distances'][0][i]) * 100.0
-            meta = all_results['metadatas'][0][i]
-            question_text = meta['question']
-            # Обрезаем текст кнопки если слишком длинный
-            button_text = question_text if len(question_text) <= 60 else question_text[:57] + "..."
-            similar_questions_buttons.append([{
-                'text': f"❓ {button_text}",
-                'action': 'similar_question',
-                'params': question_text  # Полный текст вопроса в параметрах
-            }])
-
-    if similar_questions_buttons:
-        message += "\n\n💡 Возможно, вам помогут эти вопросы:"
-        keyboard = api.create_keyboard(similar_questions_buttons)
-        api.send_message(event.dialog_id, message, keyboard=keyboard)
-    else:
-        api.send_message(event.dialog_id, message)
-
-    logger.info(f"Отправлено 'не найдено' пользователю {event.user_id}, similarity={similarity:.1f}%")
+    api.send_message(event.dialog_id, message)
+    logger.info(f"Отправлено 'не найдено' пользователю {event.user_id}")
 
 
 def handle_rating(event: Bitrix24Event, api: Bitrix24API,

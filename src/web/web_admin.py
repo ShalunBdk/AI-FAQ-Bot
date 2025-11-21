@@ -817,6 +817,17 @@ def public_feedback():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@app.route('/admin/api/search-level-stats', methods=['GET'])
+def api_search_level_stats():
+    """API: Статистика по уровням каскадного поиска"""
+    try:
+        stats = database.get_search_level_statistics()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Ошибка получения статистики уровней поиска: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ========== BITRIX24 INTEGRATION ==========
 
 @app.route('/bitrix24/install', methods=['GET', 'POST'])

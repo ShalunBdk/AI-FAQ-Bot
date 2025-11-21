@@ -269,7 +269,21 @@ DEFAULT_BOT_SETTINGS = {
     "feedback_button_yes": "👍 Полезно",
     "feedback_button_no": "👎 Не помогло",
     "feedback_response_yes": "✅ <b>Спасибо за отзыв!</b>",
-    "feedback_response_no": "😔 Извините, что не помог."
+    "feedback_response_no": "😔 Извините, что не помог.",
+
+    # === НАСТРОЙКИ КАСКАДНОГО ПОИСКА ===
+    "exact_match_threshold": "95",       # Порог для exact match (рекомендуется не менять)
+    "keyword_match_threshold": "70",     # Порог для keyword search
+    "semantic_match_threshold": "45",    # Порог для semantic search (старый SIMILARITY_THRESHOLD)
+    "keyword_search_max_words": "5",     # Максимум слов в запросе для keyword search
+    "show_similarity": "true",           # Показывать процент схожести в ответах
+    "fallback_message": (
+        "😔 Извините, я не нашел точного ответа на ваш вопрос.\n\n"
+        "Попробуйте:\n"
+        "• Переформулировать вопрос\n"
+        "• Выбрать категорию из списка\n"
+        "• Обратиться к ответственному сотруднику"
+    ),
 }
 
 
@@ -403,7 +417,7 @@ def add_query_log(user_id: int, username: str, query_text: str, platform: str = 
         return None
 
 
-def add_answer_log(query_log_id: int, faq_id: Optional[str], similarity_score: float, answer_shown: str) -> Optional[int]:
+def add_answer_log(query_log_id: int, faq_id: Optional[str], similarity_score: float, answer_shown: str, search_level: str = 'semantic') -> Optional[int]:
     """
     Логировать показанный ответ
 
@@ -411,14 +425,15 @@ def add_answer_log(query_log_id: int, faq_id: Optional[str], similarity_score: f
     :param faq_id: ID FAQ (может быть None если ответ не найден)
     :param similarity_score: Оценка схожести (0-100)
     :param answer_shown: Текст показанного ответа
+    :param search_level: Уровень поиска ('exact', 'keyword', 'semantic', 'none', 'direct')
     :return: ID созданного лога или None при ошибке
     """
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO answer_logs (query_log_id, faq_id, similarity_score, answer_shown) VALUES (?, ?, ?, ?)",
-                (query_log_id, faq_id, similarity_score, answer_shown)
+                "INSERT INTO answer_logs (query_log_id, faq_id, similarity_score, answer_shown, search_level) VALUES (?, ?, ?, ?, ?)",
+                (query_log_id, faq_id, similarity_score, answer_shown, search_level)
             )
             return cursor.lastrowid
     except Exception as e:
@@ -695,6 +710,49 @@ def get_statistics() -> Dict:
             return stats
     except Exception as e:
         print(f"Ошибка при получении статистики: {e}")
+        return {}
+
+
+def get_search_level_statistics() -> Dict:
+    """
+    Получить статистику по уровням поиска
+
+    :return: Словарь с количеством использований каждого уровня и средней уверенностью
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT
+                    search_level,
+                    COUNT(*) as count,
+                    AVG(similarity_score) as avg_confidence
+                FROM answer_logs
+                WHERE search_level IS NOT NULL
+                GROUP BY search_level
+                ORDER BY
+                    CASE search_level
+                        WHEN 'exact' THEN 1
+                        WHEN 'keyword' THEN 2
+                        WHEN 'semantic' THEN 3
+                        WHEN 'direct' THEN 4
+                        WHEN 'none' THEN 5
+                        ELSE 6
+                    END
+            """)
+
+            stats = {}
+            for row in cursor.fetchall():
+                stats[row['search_level']] = {
+                    'count': row['count'],
+                    'avg_confidence': round(row['avg_confidence'], 2) if row['avg_confidence'] else 0
+                }
+
+            return stats
+
+    except Exception as e:
+        print(f"Ошибка при получении статистики по уровням поиска: {e}")
         return {}
 
 

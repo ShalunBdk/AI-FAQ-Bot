@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from src.core import database
 from src.core import logging_config
+from src.core.search import find_answer
 
 # Загружаем переменные окружения из .env
 load_dotenv()
@@ -428,6 +429,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error("Не удалось отправить приветственное сообщение пользователю")
 
 async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Поиск ответа на вопрос пользователя через каскадную систему"""
     # Проверяем, не спит ли бот
     if not check_if_bot_awake():
         remaining_time = int(sleep_until - time.time())
@@ -451,101 +453,101 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_log_id = database.add_query_log(
         user_id=user.id,
         username=user.username or user.first_name,
-        query_text=query
+        query_text=query,
+        platform='telegram'
     )
 
     try:
-        best_meta, score, raw_results = find_best_match(query, n_results=3)
+        # === КАСКАДНЫЙ ПОИСК ===
+        result = find_answer(query, collection)
 
-        if not best_meta:
-            # Логируем отсутствие ответа
+        if result.found:
+            # Нашли ответ!
+            logger.info(f"✅ Ответ найден через {result.search_level} (confidence: {result.confidence:.1f}%)")
+
+            # Логируем показанный ответ
+            answer_log_id = None
+            if query_log_id:
+                answer_log_id = database.add_answer_log(
+                    query_log_id=query_log_id,
+                    faq_id=result.faq_id,
+                    similarity_score=result.confidence,
+                    answer_shown=result.answer,
+                    search_level=result.search_level
+                )
+
+            # Формируем ответ
+            response = f"<b>{result.question}</b>\n\n{result.answer}"
+
+            # Добавляем процент схожести если включено в настройках
+            show_similarity = bot_settings_cache.get("show_similarity", "true") == "true"
+            if show_similarity:
+                search_level_icons = {
+                    'exact': '🎯',
+                    'keyword': '🔑',
+                    'semantic': '🧠',
+                }
+                icon = search_level_icons.get(result.search_level, '🔍')
+                response += f"\n\n<i>{icon} Совпадение: {result.confidence:.0f}%</i>"
+
+            # Формируем клавиатуру с кнопками обратной связи
+            keyboard = []
+
+            # Кнопки обратной связи
+            yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
+            no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
+            keyboard.append([
+                InlineKeyboardButton(yes_text, callback_data=f"helpful_yes_{answer_log_id or 0}"),
+                InlineKeyboardButton(no_text, callback_data=f"helpful_no_{answer_log_id or 0}")
+            ])
+
+            # Похожие вопросы (только для semantic search)
+            if result.search_level == 'semantic' and result.all_results:
+                try:
+                    semantic_threshold = float(bot_settings_cache.get('semantic_match_threshold', 45))
+                    for i in range(1, min(3, len(result.all_results["documents"][0]))):
+                        dist = result.all_results["distances"][0][i]
+                        sim = max(0.0, 1.0 - dist) * 100.0
+                        if sim > semantic_threshold:
+                            q = result.all_results["metadatas"][0][i]["question"]
+                            id_ = result.all_results["ids"][0][i]
+                            if id_:
+                                keyboard.append([InlineKeyboardButton(
+                                    f"📄 {q[:40]}... ({sim:.0f}%)",
+                                    callback_data=f"show_{id_}"
+                                )])
+                except Exception:
+                    pass
+
+            # Кнопка назад к категориям
+            keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
+
+            await safe_send_message(
+                update.message.reply_text,
+                response,
+                parse_mode='HTML',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+
+        else:
+            # Ответ не найден - используем fallback
             logger.warning(f"❌ Ответ не найден для запроса: '{query}' от пользователя {user.id}")
+
+            # Логируем отсутствие ответа
             if query_log_id:
                 database.add_answer_log(
                     query_log_id=query_log_id,
                     faq_id=None,
                     similarity_score=0.0,
-                    answer_shown="Ответ не найден"
+                    answer_shown=result.message or "Ответ не найден",
+                    search_level='none'
                 )
 
             await safe_send_message(
                 update.message.reply_text,
-                "😔 К сожалению, я не нашёл ответа на ваш вопрос.\n\n"
-                "Я передам ваш запрос создателям бота, и они постараются добавить ответ в ближайшее время.\n\n"
-                "А пока попробуйте переформулировать вопрос или выберите категорию:",
+                result.message,
                 reply_markup=get_categories_keyboard()
             )
-            return
-
-        # Получаем ID FAQ из результатов
-        faq_id = raw_results["ids"][0][0] if raw_results and "ids" in raw_results and raw_results["ids"] else None
-
-        # Если совпадение слишком низкое (< порога), не показываем ответ
-        if score < SIMILARITY_THRESHOLD:
-            logger.warning(f"❌ Совпадение слишком низкое ({score:.1f}%) для запроса: '{query}' от пользователя {user.id}")
-            # Логируем что ответ не найден
-            if query_log_id:
-                database.add_answer_log(
-                    query_log_id=query_log_id,
-                    faq_id=None,
-                    similarity_score=score,
-                    answer_shown=f"Совпадение слишком низкое ({score:.1f}%). Ответ не показан"
-                )
-
-            await safe_send_message(
-                update.message.reply_text,
-                "😔 К сожалению, я не нашёл подходящего ответа на ваш вопрос.\n\n"
-                "Я передам ваш запрос создателям бота, и они постараются добавить ответ в ближайшее время.\n\n"
-                "А пока попробуйте переформулировать вопрос или выберите категорию:",
-                reply_markup=get_categories_keyboard()
-            )
-            return
-
-        # Логируем показанный ответ
-        answer_log_id = None
-        if query_log_id:
-            answer_log_id = database.add_answer_log(
-                query_log_id=query_log_id,
-                faq_id=faq_id,
-                similarity_score=score,
-                answer_shown=best_meta['answer']
-            )
-
-        response = f"<b>{best_meta['question']}</b>\n\n{best_meta['answer']}\n\n<i>Совпадение: {score:.0f}%</i>"
-
-        # Формируем клавиатуру с кнопками обратной связи
-        keyboard = []
-
-        # Кнопки обратной связи всегда добавляем
-        yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
-        no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
-        keyboard.append([
-            InlineKeyboardButton(yes_text, callback_data=f"helpful_yes_{answer_log_id or 0}"),
-            InlineKeyboardButton(no_text, callback_data=f"helpful_no_{answer_log_id or 0}")
-        ])
-
-        # Добавляем похожие вопросы если есть
-        try:
-            for i in range(1, min(3, len(raw_results["documents"][0]))):
-                dist = raw_results["distances"][0][i]
-                sim = max(0.0, 1.0 - dist) * 100.0
-                if sim > SIMILARITY_THRESHOLD:
-                    q = raw_results["metadatas"][0][i]["question"]
-                    id_ = raw_results["ids"][0][i] if "ids" in raw_results else None
-                    if id_:
-                        keyboard.append([InlineKeyboardButton(f"📄 {q[:40]}... ({sim:.0f}%)", callback_data=f"show_{id_}")])
-        except Exception:
-            pass
-
-        # Кнопка назад к категориям
-        keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
-
-        await safe_send_message(
-            update.message.reply_text,
-            response,
-            parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
 
     except Exception as e:
         logger.error(f"Ошибка при поиске: {e}")
@@ -641,7 +643,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 query_log_id = database.add_query_log(
                     user_id=user.id,
                     username=user.username or user.first_name,
-                    query_text=f"[Просмотр FAQ] {metadata['question']}"
+                    query_text=f"[Просмотр FAQ] {metadata['question']}",
+                    platform='telegram'
                 )
 
                 answer_log_id = None
@@ -650,7 +653,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         query_log_id=query_log_id,
                         faq_id=faq_id,
                         similarity_score=100.0,  # Прямой просмотр = 100%
-                        answer_shown=metadata['answer']
+                        answer_shown=metadata['answer'],
+                        search_level='direct'  # Прямой просмотр через кнопку
                     )
 
                 # Формируем клавиатуру с кнопками обратной связи и навигацией
