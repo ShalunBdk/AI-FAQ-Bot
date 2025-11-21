@@ -33,18 +33,16 @@ services:
       - BASE_PATH=${BASE_PATH:-}
     volumes:
       # База данных SQLite (общая для всех сервисов)
-      - ./data/faq_database.db:/app/data/faq_database.db
-      # Векторная база ChromaDB (общая для всех сервисов)
-      - ./data/chroma_db:/app/data/chroma_db
+      - ./data:/app/data
       # Шаблоны Flask
       - ./src/web/templates:/app/src/web/templates
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
-    expose:
-      - "5000"
+    ports:
+      - "5000:5000"
     networks:
       - default
-      - nginx_default  # Подключение к сети Nginx
+      - glpi-ssl_glpi-network  # Подключение к сети Nginx
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -76,11 +74,11 @@ services:
       - ./data/chroma_db:/app/data/chroma_db
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
-    expose:
-      - "5002"
+    ports:
+      - "5002:5002"
     networks:
       - default
-      - nginx_default  # Подключение к сети Nginx
+      - glpi-ssl_glpi-network  # Подключение к сети Nginx
     depends_on:
       - faqbot-web-admin
     healthcheck:
@@ -110,11 +108,11 @@ services:
       - ./data/chroma_db:/app/data/chroma_db
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
-    expose:
-      - "5001"
+    ports:
+      - "5001:5001"
     networks:
       - default
-      - nginx_default  # Подключение к сети Nginx
+      - glpi-ssl_glpi-network  # Подключение к сети Nginx
     depends_on:
       - faqbot-web-admin
     healthcheck:
@@ -131,7 +129,7 @@ networks:
   default:
     driver: bridge
   # Подключение к существующей сети Nginx
-  nginx_default:
+  glpi-ssl_glpi-network:
     external: true
 
 volumes:
