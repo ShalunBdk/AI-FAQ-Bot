@@ -66,6 +66,7 @@ services:
       - BITRIX24_BOT_NAME=${BITRIX24_BOT_NAME:-FAQ Помощник}
       - MODEL_NAME=${MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
       - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}
+      - CHROMA_PATH=/app/data/chroma_db
       - ANONYMIZED_TELEMETRY=False
     volumes:
       # База данных SQLite (общая для всех сервисов)
@@ -100,6 +101,7 @@ services:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - MODEL_NAME=${MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}
       - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}
+      - CHROMA_PATH=/app/data/chroma_db
       - ANONYMIZED_TELEMETRY=False
     volumes:
       # База данных SQLite (общая для всех сервисов)

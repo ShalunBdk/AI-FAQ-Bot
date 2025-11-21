@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 # Загружаем переменные окружения
 load_dotenv()
 
-DB_FILE = "faq_database.db"
+DB_FILE = "data/faq_database.db"
 
 # Порог схожести для фильтрации (в процентах)
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "45.0"))

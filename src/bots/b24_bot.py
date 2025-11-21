@@ -45,7 +45,8 @@ if not BITRIX24_WEBHOOK:
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
 
 # ChromaDB
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
+CHROMA_PATH = os.getenv('CHROMA_PATH', './data/chroma_db')
+chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
     model_name=MODEL_NAME
 )

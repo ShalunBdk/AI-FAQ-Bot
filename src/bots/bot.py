@@ -182,7 +182,8 @@ print("Модель загружена!")
 print(f"⚙️  Порог схожести для показа ответа: {SIMILARITY_THRESHOLD}%")
 
 # ---------- Chroma ----------
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
+CHROMA_PATH = os.getenv('CHROMA_PATH', './data/chroma_db')
+chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL_NAME)
 
 # Глобальные переменные
