@@ -520,7 +520,7 @@
     async function loadFAQs(category = '') {
         if (isSearchActive) return;
 
-        const url = category ? `${BASE_URL}/faq/list?category=${category}` : '/admin/faq/list';
+        const url = category ? `${BASE_URL}/faq/list?category=${category}` : `${BASE_URL}/faq/list`;
         const response = await fetch(url);
         const faqs = await response.json();
 
