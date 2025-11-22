@@ -70,9 +70,7 @@ services:
       - ANONYMIZED_TELEMETRY=False
     volumes:
       # База данных SQLite (общая для всех сервисов)
-      - ./data/faq_database.db:/app/data/faq_database.db
-      # Векторная база ChromaDB (общая для всех сервисов)
-      - ./data/chroma_db:/app/data/chroma_db
+      - ./data:/app/data
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
@@ -105,9 +103,7 @@ services:
       - ANONYMIZED_TELEMETRY=False
     volumes:
       # База данных SQLite (общая для всех сервисов)
-      - ./data/faq_database.db:/app/data/faq_database.db
-      # Векторная база ChromaDB (общая для всех сервисов)
-      - ./data/chroma_db:/app/data/chroma_db
+      - ./data:/app/data
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
