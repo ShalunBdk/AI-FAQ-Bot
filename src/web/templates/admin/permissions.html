@@ -169,19 +169,19 @@
                 </div>
 
             <nav class="flex flex-col gap-2 flex-grow">
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">import_contacts</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">База знаний</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/logs">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/logs">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">receipt_long</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Логи</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="/admin/permissions">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="{{ config.get('BASE_PATH', '') }}/admin/permissions">
                     <span class="material-symbols-outlined fill">admin_panel_settings</span>
                     <p class="text-sm font-bold leading-normal">Права доступа</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/settings">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/settings">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">settings</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Настройки</p>
                 </a>
@@ -312,6 +312,7 @@
 
     <script>
         // Глобальные переменные
+        const BASE_PATH = '{{ config.get("BASE_PATH", "") }}';
         let currentDomain = '{{ domain }}';
         let currentUserId = null;
         let currentUserRole = null;
@@ -351,7 +352,7 @@
         // Загрузка списка пользователей
         async function loadUsers() {
             try {
-                const response = await fetch(`/api/bitrix24/permissions/list?domain=${encodeURIComponent(currentDomain)}`);
+                const response = await fetch(`${BASE_PATH}/api/bitrix24/permissions/list?domain=${encodeURIComponent(currentDomain)}`);
                 const data = await response.json();
 
                 document.getElementById('usersLoading').classList.add('hidden');
@@ -574,7 +575,7 @@
             const userName = `${employee.LAST_NAME || ''} ${employee.NAME || ''}`.trim();
 
             try {
-                const response = await fetch('/api/bitrix24/permissions/add', {
+                const response = await fetch(`${BASE_PATH}/api/bitrix24/permissions/add`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -610,7 +611,7 @@
             }
 
             try {
-                const response = await fetch('/api/bitrix24/permissions/remove', {
+                const response = await fetch(`${BASE_PATH}/api/bitrix24/permissions/remove`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'

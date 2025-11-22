@@ -285,8 +285,8 @@
 </div>
 
 <script>
-    // Базовый URL для API запросов (относительный путь от текущей страницы)
-    const BASE_URL = '.';
+    // Базовый URL для API запросов (с учетом BASE_PATH для reverse proxy)
+    const BASE_URL = '{{ config.get("BASE_PATH", "") }}/admin';
 
     let currentEditId = null;
     let isSearchActive = false;

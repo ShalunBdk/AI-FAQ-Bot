@@ -151,19 +151,19 @@
             </div>
 
             <nav class="flex flex-col gap-2 flex-grow">
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">import_contacts</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">База знаний</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/logs">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/logs">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">receipt_long</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Логи</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="/admin/permissions">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/permissions">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">admin_panel_settings</span>
                     <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Права доступа</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="/admin/settings">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="{{ config.get('BASE_PATH', '') }}/admin/settings">
                     <span class="material-symbols-outlined fill">settings</span>
                     <p class="text-sm font-bold leading-normal">Настройки</p>
                 </a>
@@ -435,6 +435,8 @@
 </div>
 
 <script>
+    // Базовый URL для API запросов (с учетом BASE_PATH для reverse proxy)
+    const BASE_URL = '{{ config.get("BASE_PATH", "") }}/admin';
     const editors = {};
 
     // Конвертация Quill HTML в Telegram HTML
@@ -511,7 +513,7 @@
     // Загрузка настроек
     async function loadSettings() {
         try {
-            const response = await fetch("/admin/api/settings");
+            const response = await fetch(`${BASE_URL}/api/settings`);
             const data = await response.json();
 
             if (data.success) {
@@ -619,7 +621,7 @@
         try {
             showNotification("Сохранение настроек...", "info");
 
-            const response = await fetch("/admin/api/settings", {
+            const response = await fetch(`${BASE_URL}/api/settings`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ settings }),
@@ -646,7 +648,7 @@
         try {
             showNotification("Сброс настроек...", "info");
 
-            const response = await fetch("/admin/api/settings/reset", {
+            const response = await fetch(`${BASE_URL}/api/settings/reset`, {
                 method: "POST",
             });
 
