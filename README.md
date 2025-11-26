@@ -10,6 +10,7 @@
 > - [DOCKER-CPU-OPTIMIZATION.md](DOCKER-CPU-OPTIMIZATION.md) - оптимизация сборки (экономия ~1.5 ГБ)
 > - [DOCKER-BUILD-SLOW-NPM.md](DOCKER-BUILD-SLOW-NPM.md) - решение проблемы медленного npm install
 > - [REVERSE-PROXY-SETUP.md](REVERSE-PROXY-SETUP.md) - настройка reverse proxy с BASE_PATH
+> - [BASE-PATH-STATIC-FILES-FIX.md](BASE-PATH-STATIC-FILES-FIX.md) - профессиональное решение для статики
 
 ## 📋 Основные возможности
 

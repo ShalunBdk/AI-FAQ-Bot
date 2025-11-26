@@ -5,6 +5,7 @@ Flask веб-приложение для управления FAQ и перео�
 
 from flask import Flask, Blueprint, render_template, request, jsonify, redirect, url_for, make_response
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 import uuid
 import sys
 import logging
@@ -36,14 +37,27 @@ from chromadb.utils import embedding_functions
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
 template_folder = os.path.join(current_dir, 'templates')
-BASE_PATH = os.getenv('BASE_PATH', '')
+BASE_PATH = os.getenv('BASE_PATH', '').rstrip('/')
 
+# Создаём Flask приложение
 app = Flask(__name__,
             static_folder=static_folder,
             template_folder=template_folder,
-            static_url_path=f"{os.getenv('BASE_PATH','')}/static")
+            static_url_path='/static')  # БЕЗ BASE_PATH!
+
+# ProxyFix middleware - правильная обработка X-Script-Name от nginx
+# Это позволяет Flask корректно генерировать URL при работе за reverse proxy
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,       # X-Forwarded-For
+    x_proto=1,     # X-Forwarded-Proto
+    x_host=1,      # X-Forwarded-Host
+    x_prefix=1     # X-Script-Name → SCRIPT_NAME (BASE_PATH)
+)
+
 app.config['JSON_AS_ASCII'] = False
-app.config['BASE_PATH'] = os.getenv('BASE_PATH', '')  # Для reverse proxy (напр. /faqbot)
+app.config['BASE_PATH'] = BASE_PATH  # Для использования в templates
+app.config['PREFERRED_URL_SCHEME'] = 'https'  # Для генерации HTTPS URL
 
 # Настройка CORS для работы с Битрикс24
 # Получаем список разрешённых origins
