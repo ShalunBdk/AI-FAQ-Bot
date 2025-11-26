@@ -70,6 +70,7 @@ services:
       - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}
       - CHROMA_PATH=/app/data/chroma_db
       - ANONYMIZED_TELEMETRY=False
+      - BASE_PATH=${BASE_PATH:-}
     volumes:
       # База данных SQLite (общая для всех сервисов)
       - ./data:/app/data
