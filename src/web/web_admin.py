@@ -36,11 +36,12 @@ from chromadb.utils import embedding_functions
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
 template_folder = os.path.join(current_dir, 'templates')
+BASE_PATH = os.getenv('BASE_PATH', '')
 
 app = Flask(__name__,
             static_folder=static_folder,
             template_folder=template_folder,
-            static_url_path='/static')
+            static_url_path=f"{os.getenv('BASE_PATH','')}/static")
 app.config['JSON_AS_ASCII'] = False
 app.config['BASE_PATH'] = os.getenv('BASE_PATH', '')  # Для reverse proxy (напр. /faqbot)
 
