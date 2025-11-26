@@ -1,0 +1,13 @@
+{
+  "name": "faqbot-admin",
+  "version": "1.0.0",
+  "description": "Admin panel assets for AI-FAQ-Bot",
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/web/static/css/input.css -o ./src/web/static/css/output.css --minify",
+    "watch:css": "tailwindcss -i ./src/web/static/css/input.css -o ./src/web/static/css/output.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.7",
+    "tailwindcss": "^3.4.1"
+  }
+}

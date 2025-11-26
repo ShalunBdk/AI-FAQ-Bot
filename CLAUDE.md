@@ -148,6 +148,13 @@ get_logs(filters), get_statistics(filters), get_search_level_statistics()
 - `POST /admin/retrain` - Rebuild ChromaDB + notify bots
 - `GET /admin/api/search-level-stats` - Cascade search statistics
 
+**Static Assets:**
+- Uses local Tailwind CSS (no CDN)
+- Local fonts: Inter, Material Symbols Outlined
+- Build: `npm run build:css` → `src/web/static/css/output.css`
+- Watch mode: `npm run watch:css`
+- See `README_ASSETS.md` for details
+
 ---
 
 ## Code Conventions

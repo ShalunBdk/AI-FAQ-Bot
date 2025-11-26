@@ -32,7 +32,15 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 import chromadb
 from chromadb.utils import embedding_functions
 
-app = Flask(__name__)
+# Определяем пути к статическим файлам и шаблонам
+current_dir = os.path.dirname(os.path.abspath(__file__))
+static_folder = os.path.join(current_dir, 'static')
+template_folder = os.path.join(current_dir, 'templates')
+
+app = Flask(__name__,
+            static_folder=static_folder,
+            template_folder=template_folder,
+            static_url_path='/static')
 app.config['JSON_AS_ASCII'] = False
 app.config['BASE_PATH'] = os.getenv('BASE_PATH', '')  # Для reverse proxy (напр. /faqbot)
 
@@ -69,17 +77,17 @@ def set_security_headers(response):
         if bitrix_domain:
             response.headers['Content-Security-Policy'] = (
                 f"frame-ancestors 'self' https://{bitrix_domain} https://*.bitrix24.ru https://*.bitrix24.com;"
-                f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net/ https://api.bitrix24.com/; "
-                f"style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net/; "
-                f"font-src 'self' https://fonts.gstatic.com;"
+                f"script-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://cdn.jsdelivr.net/ https://api.bitrix24.com/; "
+                f"style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://cdn.jsdelivr.net/; "
+                f"font-src 'self' data:;"
             )
     else:
         # В development разрешаем все для тестирования
         response.headers['Content-Security-Policy'] = (
             "frame-ancestors *; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net/ https://api.bitrix24.com/; "
-            "style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net/; "
-            "font-src 'self' https://fonts.gstatic.com;"
+            "script-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://cdn.jsdelivr.net/ https://api.bitrix24.com/; "
+            "style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://cdn.jsdelivr.net/; "
+            "font-src 'self' data:;"
         )
 
     return response

@@ -54,3 +54,10 @@ docker-compose.override.yml
 nginx/logs/
 nginx/ssl/
 nginx/certbot-data/
+
+# Node.js
+node_modules/
+package-lock.json
+
+# Build artifacts
+src/web/static/css/output.css

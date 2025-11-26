@@ -17,6 +17,8 @@ services:
       - ../data/chroma_db:/app/data/chroma_db
       # Шаблоны Flask
       - ../src/web/templates:/app/src/web/templates
+      # Статические файлы (CSS, шрифты)
+      - ../src/web/static:/app/src/web/static
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
