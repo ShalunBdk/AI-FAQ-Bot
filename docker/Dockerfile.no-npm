@@ -1,15 +1,15 @@
+# Dockerfile без npm (CSS собирается локально)
+# Используйте этот вариант если сборка с npm занимает слишком много времени
+
 # Используем официальный Python образ
 FROM python:3.11-slim
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Устанавливаем системные зависимости + Node.js для сборки CSS
+# Устанавливаем только Python build tools
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Копируем requirements.txt и устанавливаем Python зависимости
@@ -17,11 +17,13 @@ COPY requirements.txt .
 
 # ВАЖНО: Сначала устанавливаем PyTorch CPU-only (без CUDA)
 # Это экономит ~1.5 ГБ и ускоряет сборку
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+RUN echo "==> Установка PyTorch CPU-only..." && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 # Затем устанавливаем остальные зависимости
 # sentence-transformers будет использовать уже установленный CPU PyTorch
-RUN pip install --no-cache-dir -r requirements.txt
+RUN echo "==> Установка Python зависимостей..." && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Копируем все файлы проекта
 COPY . .
@@ -29,26 +31,18 @@ COPY . .
 # Создаем директории для данных если их нет
 RUN mkdir -p /app/data/chroma_db
 
-# Устанавливаем npm зависимости и собираем статические файлы
-COPY package.json package-lock.json* ./
+# ⚠️ ВАЖНО: CSS должен быть собран ЛОКАЛЬНО перед docker build!
+# Запустите на локальной машине:
+#   npm install
+#   npm run build:css
+# Результат будет скопирован автоматически из src/web/static/css/output.css
 
-# Увеличиваем timeout для npm (для медленных сетей)
-# Используем --legacy-peer-deps для совместимости
-RUN echo "==> Настройка npm timeouts..." && \
-    npm config set fetch-timeout 300000 && \
-    npm config set fetch-retries 5 && \
-    npm config set fetch-retry-mintimeout 20000 && \
-    npm config set fetch-retry-maxtimeout 120000 && \
-    echo "==> Установка npm зависимостей (может занять несколько минут)..." && \
-    npm install --legacy-peer-deps --loglevel=info && \
-    echo "==> Загрузка шрифтов..." && \
-    python download_fonts.py && \
-    echo "==> Сборка CSS..." && \
-    npm run build:css && \
-    echo "==> Очистка npm кэша..." && \
-    rm -rf node_modules && \
-    npm cache clean --force && \
-    echo "==> Готово!"
+# Проверяем что CSS файл существует
+RUN if [ ! -f "src/web/static/css/output.css" ]; then \
+    echo "ERROR: output.css не найден!"; \
+    echo "Соберите CSS локально: npm install && npm run build:css"; \
+    exit 1; \
+    fi
 
 # Переменная окружения для отключения телеметрии
 ENV ANONYMIZED_TELEMETRY=False
