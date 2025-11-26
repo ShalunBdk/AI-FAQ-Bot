@@ -14,6 +14,13 @@ RUN apt-get update && apt-get install -y \
 
 # Копируем requirements.txt и устанавливаем Python зависимости
 COPY requirements.txt .
+
+# ВАЖНО: Сначала устанавливаем PyTorch CPU-only (без CUDA)
+# Это экономит ~1.5 ГБ и ускоряет сборку
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Затем устанавливаем остальные зависимости
+# sentence-transformers будет использовать уже установленный CPU PyTorch
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем все файлы проекта
@@ -24,7 +31,14 @@ RUN mkdir -p /app/data/chroma_db
 
 # Устанавливаем npm зависимости и собираем статические файлы
 COPY package.json package-lock.json* ./
-RUN npm install && \
+
+# Увеличиваем timeout для npm (для медленных сетей)
+# Используем --legacy-peer-deps для совместимости
+RUN npm config set fetch-timeout 300000 && \
+    npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm install --legacy-peer-deps && \
     python download_fonts.py && \
     npm run build:css && \
     rm -rf node_modules && \

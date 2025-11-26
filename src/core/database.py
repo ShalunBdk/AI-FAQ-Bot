@@ -341,7 +341,7 @@ DEFAULT_BOT_SETTINGS = {
 
     # === НАСТРОЙКИ КАСКАДНОГО ПОИСКА ===
     "exact_match_threshold": "95",       # Порог для exact match (рекомендуется не менять)
-    "keyword_match_threshold": "70",     # Порог для keyword search
+    "keyword_match_threshold": "65",     # Порог для keyword search
     "semantic_match_threshold": "45",    # Порог для semantic search (старый SIMILARITY_THRESHOLD)
     "keyword_search_max_words": "5",     # Максимум слов в запросе для keyword search
     "show_similarity": "true",           # Показывать процент схожести в ответах

@@ -130,28 +130,36 @@ def calculate_keyword_confidence(
     """
     Вычисление confidence для keyword search
 
-    Учитывает:
-    - Процент совпадения от запроса пользователя
-    - Процент совпадения от ключевых слов FAQ
+    Приоритет: сколько слов из запроса пользователя найдено.
+    Формула НЕ штрафует FAQ с большим количеством ключевых слов.
 
-    Формула: (matched / query) * 0.6 + (matched / faq) * 0.4
+    Логика:
+    - Все слова из запроса найдены → 95% (максимум для keyword search)
+    - Частичное совпадение → 70% + (процент_совпадений * 25%)
 
     Args:
         matched_keywords: Количество совпавших ключевых слов
         total_query_keywords: Общее количество ключевых слов в запросе
-        total_faq_keywords: Общее количество ключевых слов в FAQ
+        total_faq_keywords: Общее количество ключевых слов в FAQ (не используется)
 
     Returns:
-        Confidence (0-95%)
+        Confidence (70-95%)
     """
     if total_query_keywords == 0:
         return 0.0
 
-    query_ratio = matched_keywords / total_query_keywords
-    faq_ratio = matched_keywords / total_faq_keywords if total_faq_keywords > 0 else 0
+    # Процент совпадения с запросом пользователя (главный критерий)
+    query_match_ratio = matched_keywords / total_query_keywords
 
-    # Взвешенная сумма: 60% от совпадения в запросе, 40% от совпадения в FAQ
-    confidence = (query_ratio * 0.6 + faq_ratio * 0.4) * 100
+    # Если все слова из запроса найдены → максимальный confidence
+    if query_match_ratio == 1.0:
+        return 95.0
+
+    # Частичное совпадение: базовый confidence 70% + бонус за каждое совпадение
+    base_confidence = 70.0
+    match_bonus = query_match_ratio * 25.0  # До +25% за совпадения
+
+    confidence = base_confidence + match_bonus
 
     # Максимум 95% для keyword search (чтобы exact match всегда был лучше)
     return min(confidence, 95.0)

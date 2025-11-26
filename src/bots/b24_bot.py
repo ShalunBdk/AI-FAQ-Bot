@@ -36,6 +36,23 @@ BITRIX24_WEBHOOK = os.getenv("BITRIX24_WEBHOOK")
 BITRIX24_BOT_ID = os.getenv("BITRIX24_BOT_ID")  # Числовой BOT_ID для регистрации команд
 BITRIX24_BOT_CLIENT_ID = os.getenv("BITRIX24_BOT_CLIENT_ID")  # Строковый CLIENT_ID бота для API запросов
 BITRIX24_HANDLER_URL = os.getenv("BITRIX24_HANDLER_URL", "https://your-server.com/webhook/bitrix24")
+
+# Поддержка BASE_PATH для reverse proxy (например, /faqbot)
+BASE_PATH = os.getenv("BASE_PATH", "").rstrip('/')
+if BASE_PATH and BITRIX24_HANDLER_URL:
+    # Если HANDLER_URL уже содержит BASE_PATH - не дублируем
+    if BASE_PATH not in BITRIX24_HANDLER_URL:
+        # Вставляем BASE_PATH между доменом и путём
+        # Например: https://domain.com/webhook/bitrix24 → https://domain.com/faqbot/webhook/bitrix24
+        from urllib.parse import urlparse, urlunparse
+        parsed = urlparse(BITRIX24_HANDLER_URL)
+        new_path = f"{BASE_PATH}{parsed.path}"
+        BITRIX24_HANDLER_URL = urlunparse((
+            parsed.scheme, parsed.netloc, new_path,
+            parsed.params, parsed.query, parsed.fragment
+        ))
+        logger.info(f"🔧 BASE_PATH применён к HANDLER_URL: {BITRIX24_HANDLER_URL}")
+
 MODEL_NAME = os.getenv("MODEL_NAME", "paraphrase-multilingual-MiniLM-L12-v2")
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "45.0"))
 

@@ -7,6 +7,8 @@
 > - [DOCKER.md](DOCKER.md) - подробное руководство по Docker
 > - [DEPLOYMENT.md](DEPLOYMENT.md) - production развертывание с Nginx
 > - [README_BITRIX24.md](README_BITRIX24.md) - интеграция с Bitrix24
+> - [DOCKER-CPU-OPTIMIZATION.md](DOCKER-CPU-OPTIMIZATION.md) - оптимизация сборки (экономия ~1.5 ГБ)
+> - [REVERSE-PROXY-SETUP.md](REVERSE-PROXY-SETUP.md) - настройка reverse proxy с BASE_PATH
 
 ## 📋 Основные возможности
 
