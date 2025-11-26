@@ -43,7 +43,7 @@ BASE_PATH = os.getenv('BASE_PATH', '').rstrip('/')
 app = Flask(__name__,
             static_folder=static_folder,
             template_folder=template_folder,
-            static_url_path='/static')  # БЕЗ BASE_PATH!
+            static_url_path=f"{BASE_PATH}/static")
 
 # ProxyFix middleware - правильная обработка X-Script-Name от nginx
 # Это позволяет Flask корректно генерировать URL при работе за reverse proxy
