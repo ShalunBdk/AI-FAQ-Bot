@@ -40,8 +40,6 @@ services:
       - ./src/web/static:/app/src/web/static
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
-    ports:
-      - "5000:5000"
     networks:
       - default
       - glpi-ssl_glpi-network  # Подключение к сети Nginx
@@ -76,8 +74,6 @@ services:
       - ./data:/app/data
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
-    ports:
-      - "5002:5002"
     networks:
       - default
       - glpi-ssl_glpi-network  # Подключение к сети Nginx
@@ -109,8 +105,6 @@ services:
       - ./data:/app/data
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
-    ports:
-      - "5001:5001"
     networks:
       - default
       - glpi-ssl_glpi-network  # Подключение к сети Nginx

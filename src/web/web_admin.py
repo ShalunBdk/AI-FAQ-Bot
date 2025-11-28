@@ -12,6 +12,8 @@ import logging
 import os
 import signal
 import requests
+import jwt
+import re
 from io import BytesIO, TextIOWrapper
 import csv
 from dotenv import load_dotenv
@@ -21,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from src.core import database
 from src.core import logging_config
-from src.web.middleware import get_allowed_origins, is_production, cors_origin_validator
+from src.web.middleware import get_allowed_origins, is_production, cors_origin_validator, require_bitrix24_auth
 from src.web.bitrix24_integration import handle_install, handle_index, handle_app
 from src.web.bitrix24_permissions import bitrix24_permissions_bp
 
@@ -132,6 +134,57 @@ embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(model_
 
 # Создаем Blueprint для админ-панели
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+
+# Защита всех роутов админки в production режиме
+@admin_bp.before_request
+def check_admin_access():
+    """
+    Проверка доступа ко всем роутам админки
+    В production режиме требует:
+    - Запрос с разрешенного Origin (Bitrix24)
+    - Действительный JWT токен
+    """
+    # Пропускаем проверку для некоторых публичных эндпоинтов если нужно
+    # (пока нет публичных эндпоинтов в админке)
+
+    if is_production():
+        # Проверяем Origin
+        from src.web.middleware import check_cors_origin
+        origin = request.headers.get('Origin')
+        if not origin:
+            # Пробуем получить из Referer
+            referer = request.headers.get('Referer', '')
+            if referer:
+                import re
+                match = re.match(r'^(https?://[^/]+)', referer)
+                if match:
+                    origin = match.group(1)
+
+        if not origin or not check_cors_origin(origin):
+            return jsonify({
+                'error': 'Доступ запрещен',
+                'message': 'Доступ к админ-панели возможен только через Битрикс24'
+            }), 403
+
+        # Проверяем JWT токен
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Требуется авторизация'}), 401
+
+        token = auth_header.replace('Bearer ', '')
+        try:
+            JWT_SECRET = os.getenv('JWT_SECRET', 'supersecretkey')
+            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+
+            # Добавляем данные пользователя в request
+            request.user_id = payload.get('id')
+            request.user_role = payload.get('role')
+            request.username = payload.get('username')
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Токен истек'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Неверный токен'}), 401
 
 
 def retrain_chromadb():
@@ -737,13 +790,32 @@ def export_logs():
 
 @app.route('/')
 def public_search():
-    """Публичная страница поиска"""
+    """
+    Корневой роут - в production закрыт, в dev показывает публичный поиск
+    """
+    if is_production():
+        return jsonify({
+            'error': 'Доступ запрещен',
+            'message': 'Доступ возможен только через Битрикс24',
+            'redirect': os.getenv('BITRIX24_DOMAIN', '')
+        }), 403
+
+    # В dev режиме показываем публичный поиск
     return render_template('search.html')
 
 
 @app.route('/api/search', methods=['POST'])
 def public_api_search():
-    """API для публичного семантического поиска"""
+    """
+    API для публичного семантического поиска
+    В production режиме закрыт
+    """
+    if is_production():
+        return jsonify({
+            'error': 'Доступ запрещен',
+            'message': 'Публичный API недоступен в production режиме'
+        }), 403
+
     data = request.json
     query = data.get('query', '').strip()
     user_id = data.get('user_id', 0)  # Для веба используем 0 или сессионный ID
