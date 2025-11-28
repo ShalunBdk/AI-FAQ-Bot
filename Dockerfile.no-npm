@@ -1,0 +1,43 @@
+# Dockerfile без npm (для быстрой сборки)
+# CSS должен быть собран локально: npm run build:css
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Устанавливаем только необходимые системные зависимости
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копируем requirements.txt
+COPY requirements.txt .
+
+# Устанавливаем PyTorch CPU-only (без CUDA)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Устанавливаем Python зависимости
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем все файлы проекта
+COPY . .
+
+# Создаем директории для данных
+RUN mkdir -p /app/data/chroma_db
+
+# ВАЖНО: Загружаем шрифты
+RUN python download_fonts.py
+
+# Проверяем что CSS уже собран
+RUN if [ ! -f /app/src/web/static/css/output.css ]; then \
+        echo "ОШИБКА: CSS не собран! Запустите 'npm run build:css' локально перед сборкой"; \
+        exit 1; \
+    fi
+
+# Переменная окружения для отключения телеметрии
+ENV ANONYMIZED_TELEMETRY=False
+
+# Expose порты
+EXPOSE 5000 5001 5002
+
+CMD ["bash"]

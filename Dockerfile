@@ -39,8 +39,9 @@ RUN echo "==> Настройка npm timeouts..." && \
     npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set progress false && \
     echo "==> Установка npm зависимостей (может занять несколько минут)..." && \
-    npm install --legacy-peer-deps --loglevel=info && \
+    npm install --legacy-peer-deps --no-audit --no-fund --verbose && \
     echo "==> Загрузка шрифтов..." && \
     python download_fonts.py && \
     echo "==> Сборка CSS..." && \
