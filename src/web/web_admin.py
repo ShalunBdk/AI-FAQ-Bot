@@ -171,9 +171,11 @@ def check_admin_access():
 
     # 2. Проверяем JWT токен только для API запросов
     # GET запросы HTML страниц разрешены (для загрузки iframe и OAuth)
+    # В Blueprint request.path уже без префикса /admin, поэтому проверяем /api/
     is_api_request = (
         request.method in ['POST', 'PUT', 'DELETE'] or  # Любые изменяющие запросы
-        request.path.startswith('/admin/api/')  # Явные API эндпоинты
+        request.path.startswith('/api/') or  # API эндпоинты в Blueprint
+        '/api/' in request.path  # Дополнительная проверка
     )
 
     if is_api_request:

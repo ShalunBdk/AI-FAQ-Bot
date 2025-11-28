@@ -8,6 +8,9 @@
     <!-- Tailwind CSS + Custom Styles -->
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet"/>
 
+    <!-- Auth Module -->
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+
     <style>
 
         /* Toast Notifications */
@@ -316,7 +319,7 @@
         // Загрузка списка пользователей
         async function loadUsers() {
             try {
-                const response = await fetch(`${BASE_PATH}/api/bitrix24/permissions/list?domain=${encodeURIComponent(currentDomain)}`);
+                const response = await fetchWithAuth(`${BASE_PATH}/api/bitrix24/permissions/list?domain=${encodeURIComponent(currentDomain)}`);
                 const data = await response.json();
 
                 document.getElementById('usersLoading').classList.add('hidden');
@@ -539,7 +542,7 @@
             const userName = `${employee.LAST_NAME || ''} ${employee.NAME || ''}`.trim();
 
             try {
-                const response = await fetch(`${BASE_PATH}/api/bitrix24/permissions/add`, {
+                const response = await fetchWithAuth(`${BASE_PATH}/api/bitrix24/permissions/add`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -575,7 +578,7 @@
             }
 
             try {
-                const response = await fetch(`${BASE_PATH}/api/bitrix24/permissions/remove`, {
+                const response = await fetchWithAuth(`${BASE_PATH}/api/bitrix24/permissions/remove`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'
@@ -625,7 +628,7 @@
                         currentUserId = currentUser.ID;
 
                         // Проверяем роль текущего пользователя
-                        const permCheck = await fetch(`/api/bitrix24/permissions/check?domain=${encodeURIComponent(currentDomain)}&user_id=${currentUserId}`);
+                        const permCheck = await fetchWithAuth(`/api/bitrix24/permissions/check?domain=${encodeURIComponent(currentDomain)}&user_id=${currentUserId}`);
                         const permData = await permCheck.json();
                         if (permData.hasPermission) {
                             currentUserRole = permData.role;

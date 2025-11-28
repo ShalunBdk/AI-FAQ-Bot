@@ -7,6 +7,9 @@
 
     <!-- Tailwind CSS + Custom Styles -->
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet"/>
+
+    <!-- Auth Module -->
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </head>
 
 <body class="font-display bg-background-light dark:bg-background-dark text-[#1F2937] dark:text-gray-200">
@@ -306,7 +309,7 @@
     // Загрузка статистики
     async function loadStatistics() {
         try {
-            const response = await fetch(`${BASE_URL}/api/logs/statistics`);
+            const response = await fetchWithAuth(`${BASE_URL}/api/logs/statistics`);
             const data = await response.json();
 
             if (data.success) {
@@ -340,7 +343,7 @@
                 ...currentFilters,
             });
 
-            const response = await fetch(`${BASE_URL}/api/logs/list?${params}`);
+            const response = await fetchWithAuth(`${BASE_URL}/api/logs/list?${params}`);
             const data = await response.json();
 
             document.getElementById("loading").style.display = "none";

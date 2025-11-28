@@ -8,6 +8,9 @@
     <!-- Tailwind CSS + Custom Styles -->
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet"/>
 
+    <!-- Auth Module -->
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+
     <!-- Quill WYSIWYG Editor -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
@@ -477,7 +480,7 @@
     // Загрузка настроек
     async function loadSettings() {
         try {
-            const response = await fetch(`${BASE_URL}/api/settings`);
+            const response = await fetchWithAuth(`${BASE_URL}/api/settings`);
             const data = await response.json();
 
             if (data.success) {
@@ -585,7 +588,7 @@
         try {
             showNotification("Сохранение настроек...", "info");
 
-            const response = await fetch(`${BASE_URL}/api/settings`, {
+            const response = await fetchWithAuth(`${BASE_URL}/api/settings`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ settings }),
@@ -612,7 +615,7 @@
         try {
             showNotification("Сброс настроек...", "info");
 
-            const response = await fetch(`${BASE_URL}/api/settings/reset`, {
+            const response = await fetchWithAuth(`${BASE_URL}/api/settings/reset`, {
                 method: "POST",
             });
 
