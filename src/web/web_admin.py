@@ -142,32 +142,41 @@ def check_admin_access():
     """
     Проверка доступа ко всем роутам админки
     В production режиме требует:
-    - Запрос с разрешенного Origin (Bitrix24)
-    - Действительный JWT токен
+    - Запрос с разрешенного Origin (Bitrix24) - для всех запросов
+    - JWT токен - только для API запросов (POST/PUT/DELETE и /api/*)
+
+    HTML страницы (GET /admin/, /admin/logs) доступны из Bitrix24 без токена
+    для первоначальной загрузки iframe и OAuth авторизации
     """
-    # Пропускаем проверку для некоторых публичных эндпоинтов если нужно
-    # (пока нет публичных эндпоинтов в админке)
+    if not is_production():
+        return  # В dev режиме нет проверок
 
-    if is_production():
-        # Проверяем Origin
-        from src.web.middleware import check_cors_origin
-        origin = request.headers.get('Origin')
-        if not origin:
-            # Пробуем получить из Referer
-            referer = request.headers.get('Referer', '')
-            if referer:
-                import re
-                match = re.match(r'^(https?://[^/]+)', referer)
-                if match:
-                    origin = match.group(1)
+    from src.web.middleware import check_cors_origin
 
-        if not origin or not check_cors_origin(origin):
-            return jsonify({
-                'error': 'Доступ запрещен',
-                'message': 'Доступ к админ-панели возможен только через Битрикс24'
-            }), 403
+    # 1. Проверяем Origin для ВСЕХ запросов
+    origin = request.headers.get('Origin')
+    if not origin:
+        # Пробуем получить из Referer
+        referer = request.headers.get('Referer', '')
+        if referer:
+            match = re.match(r'^(https?://[^/]+)', referer)
+            if match:
+                origin = match.group(1)
 
-        # Проверяем JWT токен
+    if not origin or not check_cors_origin(origin):
+        return jsonify({
+            'error': 'Доступ запрещен',
+            'message': 'Доступ к админ-панели возможен только через Битрикс24'
+        }), 403
+
+    # 2. Проверяем JWT токен только для API запросов
+    # GET запросы HTML страниц разрешены (для загрузки iframe и OAuth)
+    is_api_request = (
+        request.method in ['POST', 'PUT', 'DELETE'] or  # Любые изменяющие запросы
+        request.path.startswith('/admin/api/')  # Явные API эндпоинты
+    )
+
+    if is_api_request:
         auth_header = request.headers.get('Authorization', '')
         if not auth_header.startswith('Bearer '):
             return jsonify({'error': 'Требуется авторизация'}), 401
