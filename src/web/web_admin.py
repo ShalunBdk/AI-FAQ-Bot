@@ -884,7 +884,13 @@ def health_check():
             faq_count = cursor.fetchone()[0]
 
         # Проверяем ChromaDB
-        chromadb_count = collection.count() if collection else 0
+        chromadb_count = 0
+        try:
+            collection = chroma_client.get_collection(name="faq_collection")
+            chromadb_count = collection.count()
+        except Exception:
+            # Коллекция ещё не создана (до первого переобучения)
+            chromadb_count = 0
 
         return jsonify({
             'status': 'ok',
