@@ -46,26 +46,52 @@ Multi-platform FAQ bot with **cascading search system** (4 levels) and semantic 
 ## Directory Structure
 
 ```
-src/
-├── core/
-│   ├── database.py        # SQLite ORM, settings, logging
-│   ├── search.py          # 🆕 Cascading search (4 levels)
-│   └── logging_config.py  # UTC+7 logging
-├── bots/
-│   ├── bot.py             # Telegram bot (polling)
-│   └── b24_bot.py         # Bitrix24 bot (webhook)
-├── api/
-│   └── b24_api.py         # Bitrix24 REST client
-└── web/
-    ├── web_admin.py       # Flask admin panel
-    ├── middleware.py      # Auth & CORS
-    ├── bitrix24_*.py      # OAuth, permissions
-    └── templates/admin/   # HTML templates
-
-scripts/
-├── migrate_*.py           # Database migrations
-├── test_cascade_search.py # Search system tests
-└── demo_faq.py            # Demo data (21 FAQs)
+FAQBot/
+├── Dockerfile                     # Docker образ (Python 3.11 + Node.js)
+├── docker-compose.dev.yml         # Development конфигурация
+├── docker-compose.production.yml  # Production конфигурация (Bitrix24)
+├── nginx.conf.example             # Nginx конфиг для Bitrix24
+├── docker.env.production          # Шаблон .env для продакшена
+├── README.md                      # Основная документация
+├── CLAUDE.md                      # AI-инструкции (этот файл)
+├── DEPLOY-BITRIX24.md            # Гайд по развертыванию
+├── PRODUCTION-CHECKLIST.md       # Чеклист перед деплоем
+│
+├── src/
+│   ├── core/
+│   │   ├── database.py        # SQLite ORM, settings, logging
+│   │   ├── search.py          # Cascading search (4 levels)
+│   │   └── logging_config.py  # UTC+7 logging
+│   ├── bots/
+│   │   ├── bot.py             # Telegram bot (опциональный)
+│   │   └── b24_bot.py         # Bitrix24 bot (основной)
+│   ├── api/
+│   │   └── b24_api.py         # Bitrix24 REST client
+│   └── web/
+│       ├── web_admin.py       # Flask admin panel
+│       ├── middleware.py      # Auth & CORS
+│       ├── bitrix24_*.py      # OAuth, permissions
+│       └── templates/admin/   # HTML templates
+│
+├── scripts/
+│   ├── migrate_*.py           # Database migrations
+│   ├── test_cascade_search.py # Search system tests
+│   ├── demo_faq.py            # Demo data (21 FAQs)
+│   └── register_bot.py        # Регистрация в Bitrix24
+│
+├── docs/                      # Техническая документация
+│   ├── DEPLOYMENT.md
+│   ├── DOCKER.md
+│   ├── QUICKSTART.md
+│   ├── DOCKER-CPU-OPTIMIZATION.md
+│   ├── REVERSE-PROXY-SETUP.md
+│   └── migrations/            # История миграций БД
+│
+├── nginx/                     # Альтернативные nginx конфиги
+│   └── README.md
+│
+├── .dockerignore              # Docker build ignore rules
+└── docker-compose.override.yml.example  # Пример для кастомизации
 ```
 
 ---
@@ -255,9 +281,14 @@ BITRIX24_CLIENT_ID=...
 
 ### Docker
 ```bash
-docker-compose --profile telegram up -d        # Telegram
-docker-compose --profile bitrix24 up -d        # Bitrix24
-docker-compose --profile telegram --profile bitrix24 up -d  # All
+# Development (все сервисы)
+docker-compose -f docker-compose.dev.yml up -d
+
+# Production (только Bitrix24)
+docker-compose -f docker-compose.production.yml up -d
+
+# Production с Telegram (опционально)
+docker-compose -f docker-compose.production.yml --profile telegram up -d
 ```
 
 ---

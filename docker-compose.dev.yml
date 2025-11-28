@@ -2,8 +2,8 @@ services:
   # Web админка (основной сервис, всегда запускается)
   web-admin:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     container_name: faqbot-web-admin
     command: python src/web/web_admin.py
     restart: unless-stopped
@@ -12,13 +12,13 @@ services:
       - ANONYMIZED_TELEMETRY=False
     volumes:
       # База данных SQLite (общая для всех сервисов)
-      - ../data/faq_database.db:/app/data/faq_database.db
+      - ./data/faq_database.db:/app/data/faq_database.db
       # Векторная база ChromaDB (общая для всех сервисов)
-      - ../data/chroma_db:/app/data/chroma_db
+      - ./data/chroma_db:/app/data/chroma_db
       # Шаблоны Flask
-      - ../src/web/templates:/app/src/web/templates
+      - ./src/web/templates:/app/src/web/templates
       # Статические файлы (CSS, шрифты)
-      - ../src/web/static:/app/src/web/static
+      - ./src/web/static:/app/src/web/static
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
@@ -35,8 +35,8 @@ services:
   # Telegram бот (опционально - profile: telegram)
   telegram-bot:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     container_name: faqbot-telegram
     command: python src/bots/bot.py
     restart: unless-stopped
@@ -47,9 +47,9 @@ services:
       - ANONYMIZED_TELEMETRY=False
     volumes:
       # База данных SQLite (общая для всех сервисов)
-      - ../data/faq_database.db:/app/data/faq_database.db
+      - ./data/faq_database.db:/app/data/faq_database.db
       # Векторная база ChromaDB (общая для всех сервисов)
-      - ../data/chroma_db:/app/data/chroma_db
+      - ./data/chroma_db:/app/data/chroma_db
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
@@ -70,8 +70,8 @@ services:
   # Bitrix24 бот (опционально - profile: bitrix24)
   bitrix24-bot:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     container_name: faqbot-bitrix24
     command: python src/bots/b24_bot.py
     restart: unless-stopped
@@ -85,9 +85,9 @@ services:
       - ANONYMIZED_TELEMETRY=False
     volumes:
       # База данных SQLite (общая для всех сервисов)
-      - ../data/faq_database.db:/app/data/faq_database.db
+      - ./data/faq_database.db:/app/data/faq_database.db
       # Векторная база ChromaDB (общая для всех сервисов)
-      - ../data/chroma_db:/app/data/chroma_db
+      - ./data/chroma_db:/app/data/chroma_db
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
@@ -96,7 +96,12 @@ services:
       - faqbot-network
     depends_on:
       - web-admin
-    # Отключаем healthcheck так как Bitrix24 может быть не настроен
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     profiles:
       - bitrix24
 

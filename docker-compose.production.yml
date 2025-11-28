@@ -9,7 +9,7 @@ services:
   faqbot-web-admin:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: faqbot-web-admin
     command: python src/web/web_admin.py
     restart: unless-stopped
@@ -56,7 +56,7 @@ services:
   faqbot-bitrix24-bot:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: faqbot-bitrix24-bot
     command: python src/bots/b24_bot.py
     restart: unless-stopped
@@ -84,7 +84,7 @@ services:
     depends_on:
       - faqbot-web-admin
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -94,7 +94,7 @@ services:
   faqbot-telegram-bot:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: faqbot-telegram-bot
     command: python src/bots/bot.py
     restart: unless-stopped

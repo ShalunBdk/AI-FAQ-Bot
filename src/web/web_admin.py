@@ -872,6 +872,34 @@ def bitrix24_app():
     return handle_app(request)
 
 
+# Health check endpoint для Docker healthcheck
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint для мониторинга"""
+    try:
+        # Проверяем доступность базы данных
+        with database.get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM faq")
+            faq_count = cursor.fetchone()[0]
+
+        # Проверяем ChromaDB
+        chromadb_count = collection.count() if collection else 0
+
+        return jsonify({
+            'status': 'ok',
+            'database': 'connected',
+            'faq_count': faq_count,
+            'chromadb_records': chromadb_count
+        }), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 503
+
+
 # Регистрируем Blueprint для управления правами Битрикс24
 app.register_blueprint(bitrix24_permissions_bp, url_prefix='/api/bitrix24/permissions')
 

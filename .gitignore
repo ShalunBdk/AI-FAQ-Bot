@@ -13,13 +13,15 @@ build/
 
 # Environment variables
 .env
+docker.env
 
 # Databases
 *.db
 *.db-journal
 faq_database.db
 
-# ChromaDB
+# Data directories
+data/
 chroma_db/
 
 # Logs
@@ -41,9 +43,14 @@ Thumbs.db
 *.tmp
 *.bak
 *.backup
+*.patch
+TEMP-*
+DEBUG-*
 
-# Backups
+# Backups & Archives
 backups/
+archive/
+archived/
 *.tar.gz
 
 # Docker
