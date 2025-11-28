@@ -43,7 +43,7 @@ RUN echo "==> Настройка npm timeouts..." && \
     echo "==> Установка npm зависимостей (может занять несколько минут)..." && \
     npm install --legacy-peer-deps --no-audit --no-fund --verbose && \
     echo "==> Загрузка шрифтов..." && \
-    python download_fonts.py && \
+    python scripts/download_fonts.py && \
     echo "==> Сборка CSS..." && \
     npm run build:css && \
     echo "==> Очистка npm кэша..." && \

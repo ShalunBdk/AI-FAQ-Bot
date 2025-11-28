@@ -9,7 +9,7 @@ services:
   faqbot-web-admin:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.no-npm
     container_name: faqbot-web-admin
     command: python src/web/web_admin.py
     restart: unless-stopped
@@ -56,7 +56,7 @@ services:
   faqbot-bitrix24-bot:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.no-npm
     container_name: faqbot-bitrix24-bot
     command: python src/bots/b24_bot.py
     restart: unless-stopped
