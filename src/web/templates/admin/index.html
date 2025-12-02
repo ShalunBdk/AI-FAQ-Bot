@@ -122,6 +122,43 @@
                         {% endfor %}
                     </select>
                 </div>
+
+                <!-- Export Button -->
+                <div class="relative">
+                    <button onclick="toggleExportMenu()" class="flex items-center gap-2 px-4 h-12 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors shadow-sm">
+                        <span class="material-symbols-outlined">download</span>
+                        <span class="text-sm font-medium">Экспорт</span>
+                        <span class="material-symbols-outlined text-xl">expand_more</span>
+                    </button>
+
+                    <!-- Export Dropdown Menu -->
+                    <div id="exportMenu" class="hidden absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-50">
+                        <div class="p-3">
+                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase">Формат экспорта</p>
+                            <button onclick="exportForReview('excel')" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                                <span class="material-symbols-outlined text-green-600 dark:text-green-400">table_chart</span>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Excel (.xlsx)</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Для редактирования</p>
+                                </div>
+                            </button>
+                            <button onclick="exportForReview('pdf')" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                                <span class="material-symbols-outlined text-red-600 dark:text-red-400">picture_as_pdf</span>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-800 dark:text-gray-200">PDF</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Для печати</p>
+                                </div>
+                            </button>
+                        </div>
+                        <div class="border-t border-gray-200 dark:border-gray-600 p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                <span class="material-symbols-outlined text-sm align-middle">info</span>
+                                Экспортируется текущая категория
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex items-center gap-2">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400 shrink-0">Вид:</p>
                     <div class="flex items-center bg-gray-200 dark:bg-gray-700/50 p-1 rounded-lg">
@@ -702,6 +739,40 @@
         document.body.appendChild(notification);
 
         setTimeout(() => notification.remove(), 3000);
+    }
+
+    // ========== ЭКСПОРТ ДЛЯ АКТУАЛИЗАЦИИ ==========
+
+    function toggleExportMenu() {
+        const menu = document.getElementById('exportMenu');
+        menu.classList.toggle('hidden');
+    }
+
+    // Закрыть меню при клике вне его
+    document.addEventListener('click', function(event) {
+        const menu = document.getElementById('exportMenu');
+        const button = event.target.closest('button[onclick="toggleExportMenu()"]');
+
+        if (!button && !menu.contains(event.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    function exportForReview(format) {
+        // Получаем текущую категорию из фильтра
+        const category = document.getElementById('categoryFilter').value || 'all';
+
+        // Формируем URL
+        const url = `${BASE_URL}/export-review?category=${encodeURIComponent(category)}&format=${format}`;
+
+        // Скрываем меню
+        document.getElementById('exportMenu').classList.add('hidden');
+
+        // Показываем уведомление
+        showNotification(`Загрузка ${format === 'pdf' ? 'PDF' : 'Excel'} файла...`, 'info');
+
+        // Открываем файл в новой вкладке (браузер автоматически скачает)
+        window.open(url, '_blank');
     }
 
     // Инициализация при загрузке

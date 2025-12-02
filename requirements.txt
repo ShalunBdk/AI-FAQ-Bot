@@ -17,3 +17,7 @@ PyJWT==2.8.0
 # Утилиты
 python-dotenv==1.0.0
 requests==2.31.0
+
+# Экспорт документов
+reportlab==4.0.7
+openpyxl==3.1.2

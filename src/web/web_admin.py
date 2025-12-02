@@ -17,6 +17,21 @@ import re
 from io import BytesIO, TextIOWrapper
 import csv
 from dotenv import load_dotenv
+from datetime import datetime
+from urllib.parse import quote
+
+# Библиотеки для экспорта
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 # Добавляем корневую директорию проекта в PYTHONPATH
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -285,6 +300,286 @@ def notify_bot_reload_settings():
             logger.error(f"❌ Ошибка при уведомлении бота ({url}): {e}")
 
 
+# ========== ЭКСПОРТ ДЛЯ АКТУАЛИЗАЦИИ ==========
+
+def generate_review_pdf(faqs, category_name):
+    """
+    Генерация PDF документа для актуализации FAQ
+    """
+    buffer = BytesIO()
+
+    # Создаем документ (альбомная ориентация для широких таблиц)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=1.5*cm,
+        leftMargin=1.5*cm,
+        topMargin=2*cm,
+        bottomMargin=2*cm
+    )
+
+    # Попытка использовать шрифт с поддержкой кириллицы
+    font_name = 'Helvetica'  # Fallback по умолчанию
+
+    try:
+        # Список возможных путей к шрифтам с поддержкой кириллицы
+        font_paths = [
+            # Linux (Docker)
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            # Windows
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/Arial.ttf",
+            # Альтернативные Windows пути
+            os.path.join(os.environ.get('WINDIR', 'C:/Windows'), 'Fonts', 'arial.ttf'),
+        ]
+
+        # Пробуем найти и зарегистрировать шрифт
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                if 'DejaVu' in font_path:
+                    pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
+                    font_name = 'DejaVuSans'
+                elif 'arial' in font_path.lower():
+                    pdfmetrics.registerFont(TTFont('Arial', font_path))
+                    font_name = 'Arial'
+                logger.info(f"✓ Зарегистрирован шрифт: {font_name} ({font_path})")
+                break
+    except Exception as e:
+        logger.warning(f"⚠ Не удалось загрузить шрифт с кириллицей: {e}")
+        # Используем Helvetica (без кириллицы)
+
+    # Стили
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontName=font_name,
+        fontSize=16,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=6
+    )
+
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontName=font_name,
+        fontSize=9,
+        leading=11
+    )
+
+    # Элементы документа
+    elements = []
+
+    # Заголовок
+    category_text = category_name if category_name != 'all' else 'Все категории'
+    title = Paragraph(f"СПИСОК FAQ ДЛЯ АКТУАЛИЗАЦИИ", title_style)
+    elements.append(title)
+
+    # Подзаголовок с категорией и датой
+    subtitle_text = f"Категория: {category_text} | Дата: {datetime.now().strftime('%d.%m.%Y')}"
+    subtitle = Paragraph(subtitle_text, normal_style)
+    elements.append(subtitle)
+    elements.append(Spacer(1, 0.5*cm))
+
+    # Подготовка данных для таблицы
+    table_data = [
+        [
+            Paragraph('<b>№</b>', normal_style),
+            Paragraph('<b>Вопрос</b>', normal_style),
+            Paragraph('<b>Ответ</b>', normal_style),
+            Paragraph('<b>Ключ. слова</b>', normal_style),
+            Paragraph('<b>Статус</b>', normal_style)
+        ]
+    ]
+
+    for idx, faq in enumerate(faqs, 1):
+        # Ограничиваем длину текста для читаемости
+        question_text = faq['question'][:100] + '...' if len(faq['question']) > 100 else faq['question']
+        answer_text = faq['answer'][:150] + '...' if len(faq['answer']) > 150 else faq['answer']
+        keywords_text = ', '.join(faq.get('keywords', []))[:50]
+
+        # Статус с чекбоксами на разных строках (используем HTML br для Paragraph)
+        status_text = (
+            '☐ Актуально<br/>'
+            '☐ Изменить<br/>'
+            '☐ Удалить'
+        )
+
+        table_data.append([
+            Paragraph(str(idx), normal_style),
+            Paragraph(question_text, normal_style),
+            Paragraph(answer_text, normal_style),
+            Paragraph(keywords_text, normal_style),
+            Paragraph(status_text, normal_style)
+        ])
+
+    # Создание таблицы
+    col_widths = [1.5*cm, 6*cm, 8*cm, 4*cm, 4*cm]
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+    # Стиль таблицы
+    table.setStyle(TableStyle([
+        # Заголовок
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), font_name),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+
+        # Содержимое
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Номер по центру
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('FONTNAME', (0, 1), (-1, -1), font_name),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f3f4f6')])
+    ]))
+
+    elements.append(table)
+
+    # Сборка документа
+    try:
+        doc.build(elements)
+    except Exception as e:
+        logger.error(f"Ошибка при генерации PDF: {e}")
+        raise
+
+    buffer.seek(0)
+    return buffer
+
+
+def generate_review_excel(faqs, category_name):
+    """
+    Генерация Excel документа для актуализации FAQ
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "FAQ для актуализации"
+
+    # Стили
+    header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='3B82F6', end_color='3B82F6', fill_type='solid')
+    header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    title_font = Font(name='Arial', size=14, bold=True, color='1E40AF')
+    subtitle_font = Font(name='Arial', size=10, color='6B7280')
+
+    cell_alignment = Alignment(vertical='top', wrap_text=True)
+    border = Border(
+        left=Side(style='thin', color='D1D5DB'),
+        right=Side(style='thin', color='D1D5DB'),
+        top=Side(style='thin', color='D1D5DB'),
+        bottom=Side(style='thin', color='D1D5DB')
+    )
+
+    # Заголовок документа
+    ws.merge_cells('A1:F1')
+    ws['A1'] = 'СПИСОК FAQ ДЛЯ АКТУАЛИЗАЦИИ'
+    ws['A1'].font = title_font
+    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+
+    # Подзаголовок
+    category_text = category_name if category_name != 'all' else 'Все категории'
+    ws.merge_cells('A2:F2')
+    ws['A2'] = f"Категория: {category_text} | Дата: {datetime.now().strftime('%d.%m.%Y')}"
+    ws['A2'].font = subtitle_font
+    ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
+
+    # Пустая строка
+    ws.row_dimensions[3].height = 5
+
+    # Заголовки столбцов (строка 4)
+    headers = ['№', 'Вопрос', 'Ответ', 'Ключевые слова', 'Статус', 'Комментарий']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = border
+
+    # Высота заголовка
+    ws.row_dimensions[4].height = 30
+
+    # Ширина столбцов
+    ws.column_dimensions['A'].width = 5   # №
+    ws.column_dimensions['B'].width = 40  # Вопрос
+    ws.column_dimensions['C'].width = 50  # Ответ
+    ws.column_dimensions['D'].width = 25  # Ключевые слова
+    ws.column_dimensions['E'].width = 18  # Статус
+    ws.column_dimensions['F'].width = 30  # Комментарий
+
+    # Данные FAQ
+    row_num = 5
+    for idx, faq in enumerate(faqs, 1):
+        # Номер
+        cell = ws.cell(row=row_num, column=1, value=idx)
+        cell.alignment = Alignment(horizontal='center', vertical='top')
+        cell.border = border
+
+        # Вопрос
+        cell = ws.cell(row=row_num, column=2, value=faq['question'])
+        cell.alignment = cell_alignment
+        cell.border = border
+
+        # Ответ
+        cell = ws.cell(row=row_num, column=3, value=faq['answer'])
+        cell.alignment = cell_alignment
+        cell.border = border
+
+        # Ключевые слова
+        keywords_text = ', '.join(faq.get('keywords', []))
+        cell = ws.cell(row=row_num, column=4, value=keywords_text)
+        cell.alignment = cell_alignment
+        cell.border = border
+
+        # Статус (выпадающий список)
+        cell = ws.cell(row=row_num, column=5, value='Актуально')  # Значение по умолчанию
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+        # Комментарий (пустая ячейка для заметок)
+        cell = ws.cell(row=row_num, column=6, value='')
+        cell.alignment = cell_alignment
+        cell.border = border
+
+        # Высота строки (автоматически подстраивается под контент)
+        ws.row_dimensions[row_num].height = max(60, len(faq['answer']) // 10 + 20)
+
+        row_num += 1
+
+    # Добавляем выпадающий список для колонки "Статус" (E)
+    # Создаем валидацию данных
+    # ВАЖНО: showDropDown=False в openpyxl означает ПОКАЗЫВАТЬ стрелку (контринтуитивно!)
+    dv = DataValidation(
+        type="list",
+        formula1='"Актуально,Изменить,Удалить"',
+        allow_blank=False,
+        showDropDown=False,  # False = показывать стрелку выпадающего списка!
+        showErrorMessage=True,
+        errorTitle='Неверное значение',
+        error='Выберите значение из списка'
+    )
+
+    # Применяем валидацию ко всем ячейкам статуса (с 5-й строки до последней)
+    last_row = row_num - 1
+    dv.add(f'E5:E{last_row}')
+    ws.add_data_validation(dv)
+
+    # Закрепляем первые 4 строки (заголовок + шапка таблицы)
+    ws.freeze_panes = 'A5'
+
+    # Сохраняем в буфер
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    return buffer
+
+
 # ========== ADMIN ROUTES ==========
 
 @admin_bp.route('/')
@@ -396,6 +691,71 @@ def retrain():
     if result["success"]:
         return jsonify(result)
     return jsonify(result), 500
+
+
+@admin_bp.route('/export-review', methods=['GET'])
+def export_for_review():
+    """
+    Экспорт FAQ для актуализации
+    Параметры:
+    - category: категория для фильтрации (по умолчанию 'all')
+    - format: формат экспорта ('pdf' или 'excel', по умолчанию 'excel')
+    """
+    try:
+        # Получаем параметры
+        category = request.args.get('category', 'all')
+        export_format = request.args.get('format', 'excel')
+
+        # Получаем FAQ
+        if category and category != 'all':
+            faqs = database.get_faqs_by_category(category)
+        else:
+            faqs = database.get_all_faqs()
+
+        if not faqs:
+            return jsonify({
+                "success": False,
+                "message": "Нет данных для экспорта"
+            }), 404
+
+        # Генерируем файл
+        date_str = datetime.now().strftime("%Y%m%d")
+
+        if export_format == 'pdf':
+            buffer = generate_review_pdf(faqs, category)
+            mimetype = 'application/pdf'
+            extension = 'pdf'
+        else:  # excel
+            buffer = generate_review_excel(faqs, category)
+            mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            extension = 'xlsx'
+
+        # Формируем имя файла (для логов)
+        filename_display = f'faq_review_{category}_{date_str}.{extension}'
+
+        # Формируем безопасное имя для HTTP заголовка (ASCII-only fallback)
+        filename_ascii = f'faq_review_{date_str}.{extension}'
+
+        # URL-кодируем полное имя с кириллицей для современных браузеров (RFC 5987)
+        filename_encoded = quote(filename_display.encode('utf-8'))
+
+        # Отправляем файл
+        response = make_response(buffer.getvalue())
+        response.headers['Content-Type'] = mimetype
+        # Используем оба формата для совместимости с разными браузерами
+        response.headers['Content-Disposition'] = (
+            f"attachment; filename={filename_ascii}; filename*=UTF-8''{filename_encoded}"
+        )
+
+        logger.info(f"✅ Экспорт выполнен: {filename_display} ({len(faqs)} FAQ)")
+        return response
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка при экспорте: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Ошибка при экспорте: {str(e)}"
+        }), 500
 
 
 @admin_bp.route('/search', methods=['GET'])
