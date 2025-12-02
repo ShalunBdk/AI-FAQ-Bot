@@ -4,12 +4,15 @@ FROM python:3.11-slim
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Устанавливаем системные зависимости + Node.js для сборки CSS
+# Устанавливаем системные зависимости + Node.js для сборки CSS + шрифты для PDF
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     nodejs \
     npm \
+    fonts-dejavu \
+    fonts-dejavu-core \
+    fonts-dejavu-extra \
     && rm -rf /var/lib/apt/lists/*
 
 # Копируем requirements.txt и устанавливаем Python зависимости

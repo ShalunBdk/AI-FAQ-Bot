@@ -324,8 +324,11 @@ def generate_review_pdf(faqs, category_name):
     try:
         # Список возможных путей к шрифтам с поддержкой кириллицы
         font_paths = [
-            # Linux (Docker)
+            # Linux/Docker - DejaVu Sans (приоритет)
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+            # Linux - альтернативные пути
+            "/usr/share/fonts/truetype/dejavu-sans/DejaVuSans.ttf",
             # Windows
             "C:/Windows/Fonts/arial.ttf",
             "C:/Windows/Fonts/Arial.ttf",
@@ -339,13 +342,20 @@ def generate_review_pdf(faqs, category_name):
                 if 'DejaVu' in font_path:
                     pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
                     font_name = 'DejaVuSans'
+                    logger.info(f"✓ Зарегистрирован шрифт: {font_name} ({font_path})")
+                    break
                 elif 'arial' in font_path.lower():
                     pdfmetrics.registerFont(TTFont('Arial', font_path))
                     font_name = 'Arial'
-                logger.info(f"✓ Зарегистрирован шрифт: {font_name} ({font_path})")
-                break
+                    logger.info(f"✓ Зарегистрирован шрифт: {font_name} ({font_path})")
+                    break
+
+        # Если шрифт не найден, логируем предупреждение
+        if font_name == 'Helvetica':
+            logger.warning("⚠ Шрифт с поддержкой кириллицы не найден, используется Helvetica (кириллица не поддерживается)")
+            logger.warning(f"⚠ Проверенные пути: {', '.join(font_paths)}")
     except Exception as e:
-        logger.warning(f"⚠ Не удалось загрузить шрифт с кириллицей: {e}")
+        logger.error(f"❌ Ошибка при загрузке шрифта: {e}")
         # Используем Helvetica (без кириллицы)
 
     # Стили
