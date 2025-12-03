@@ -323,15 +323,57 @@
         return html;
     }
 
-    // Конвертация Telegram HTML в Quill HTML
+    // Конвертация BB кодов в HTML для отображения
+    function convertBBCodeToHtml(text) {
+        if (!text) return '';
+
+        let html = text;
+
+        // Ссылки BB → HTML (сначала, чтобы не конфликтовать с другими тегами)
+        html = html.replace(/\[URL=([^\]]+)\](.+?)\[\/URL\]/gi, '<a href="$1" target="_blank">$2</a>');
+
+        // Жирный
+        html = html.replace(/\[b\]/gi, '<b>');
+        html = html.replace(/\[\/b\]/gi, '</b>');
+
+        // Курсив
+        html = html.replace(/\[i\]/gi, '<i>');
+        html = html.replace(/\[\/i\]/gi, '</i>');
+
+        // Подчеркнутый
+        html = html.replace(/\[u\]/gi, '<u>');
+        html = html.replace(/\[\/u\]/gi, '</u>');
+
+        // Зачеркнутый
+        html = html.replace(/\[s\]/gi, '<s>');
+        html = html.replace(/\[\/s\]/gi, '</s>');
+
+        // Код
+        html = html.replace(/\[code\]/gi, '<code>');
+        html = html.replace(/\[\/code\]/gi, '</code>');
+
+        // Переносы строк
+        html = html.replace(/\n/g, '<br>');
+
+        return html;
+    }
+
+    // Конвертация Telegram HTML в Quill HTML (с поддержкой BB кодов)
     function convertTelegramToQuillHtml(html) {
         if (!html) return '<p><br></p>';
+
+        // Сначала конвертируем BB коды в HTML если они есть
+        html = convertBBCodeToHtml(html);
+
+        // Потом конвертируем стандартные HTML теги
         html = html.replace(/<b>/g, '<strong>');
         html = html.replace(/<\/b>/g, '</strong>');
         html = html.replace(/<i>/g, '<em>');
         html = html.replace(/<\/i>/g, '</em>');
         html = html.replace(/<code>/g, '<code class="ql-code">');
-        const lines = html.split('\n');
+
+        // Обрабатываем переносы строк
+        const lines = html.split(/\n|<br\s*\/?>/i);
         const paragraphs = lines.map(line => {
             if (line.trim() === '') return '<p><br></p>';
             return '<p>' + line + '</p>';
@@ -345,46 +387,56 @@
 
         let text = html;
 
+        // Ссылки (ВАЖНО: обрабатываем первыми, чтобы не потерять при других заменах)
+        text = text.replace(/<a\s+(?:[^>]*?\s+)?href=["']([^"']+)["'](?:[^>]*)>(.*?)<\/a>/gi, '[URL=$1]$2[/URL]');
+
         // Жирный текст
-        text = text.replace(/<strong>/g, '[b]');
-        text = text.replace(/<\/strong>/g, '[/b]');
-        text = text.replace(/<b>/g, '[b]');
-        text = text.replace(/<\/b>/g, '[/b]');
+        text = text.replace(/<strong>/gi, '[b]');
+        text = text.replace(/<\/strong>/gi, '[/b]');
+        text = text.replace(/<b>/gi, '[b]');
+        text = text.replace(/<\/b>/gi, '[/b]');
 
         // Курсив
-        text = text.replace(/<em>/g, '[i]');
-        text = text.replace(/<\/em>/g, '[/i]');
-        text = text.replace(/<i>/g, '[i]');
-        text = text.replace(/<\/i>/g, '[/i]');
+        text = text.replace(/<em>/gi, '[i]');
+        text = text.replace(/<\/em>/gi, '[/i]');
+        text = text.replace(/<i>/gi, '[i]');
+        text = text.replace(/<\/i>/gi, '[/i]');
 
         // Подчёркнутый
-        text = text.replace(/<u>/g, '[u]');
-        text = text.replace(/<\/u>/g, '[/u]');
+        text = text.replace(/<u>/gi, '[u]');
+        text = text.replace(/<\/u>/gi, '[/u]');
 
         // Зачёркнутый
-        text = text.replace(/<s>/g, '[s]');
-        text = text.replace(/<\/s>/g, '[/s]');
-        text = text.replace(/<strike>/g, '[s]');
-        text = text.replace(/<\/strike>/g, '[/s]');
-        text = text.replace(/<del>/g, '[s]');
-        text = text.replace(/<\/del>/g, '[/s]');
+        text = text.replace(/<s>/gi, '[s]');
+        text = text.replace(/<\/s>/gi, '[/s]');
+        text = text.replace(/<strike>/gi, '[s]');
+        text = text.replace(/<\/strike>/gi, '[/s]');
+        text = text.replace(/<del>/gi, '[s]');
+        text = text.replace(/<\/del>/gi, '[/s]');
 
         // Код
-        text = text.replace(/<code[^>]*>/g, '[code]');
-        text = text.replace(/<\/code>/g, '[/code]');
-        text = text.replace(/<pre[^>]*>/g, '[code]');
-        text = text.replace(/<\/pre>/g, '[/code]');
+        text = text.replace(/<code[^>]*>/gi, '[code]');
+        text = text.replace(/<\/code>/gi, '[/code]');
+        text = text.replace(/<pre[^>]*>/gi, '[code]');
+        text = text.replace(/<\/pre>/gi, '[/code]');
 
-        // Ссылки
-        text = text.replace(/<a\s+href=["']([^"']+)["'][^>]*>(.*?)<\/a>/g, '[URL=$1]$2[/URL]');
+        // Списки (упорядоченные)
+        text = text.replace(/<ol[^>]*>/gi, '');
+        text = text.replace(/<\/ol>/gi, '');
+        text = text.replace(/<li>/gi, '• ');
+        text = text.replace(/<\/li>/gi, '\n');
+
+        // Списки (неупорядоченные)
+        text = text.replace(/<ul[^>]*>/gi, '');
+        text = text.replace(/<\/ul>/gi, '');
 
         // Убираем оставшиеся HTML теги
-        text = text.replace(/<br\s*\/?>/g, '\n');
-        text = text.replace(/<p><br><\/p>/g, '\n');
-        text = text.replace(/<p>/g, '');
-        text = text.replace(/<\/p>/g, '\n');
-        text = text.replace(/<div>/g, '');
-        text = text.replace(/<\/div>/g, '\n');
+        text = text.replace(/<br\s*\/?>/gi, '\n');
+        text = text.replace(/<p><br><\/p>/gi, '\n');
+        text = text.replace(/<p>/gi, '');
+        text = text.replace(/<\/p>/gi, '\n');
+        text = text.replace(/<div>/gi, '');
+        text = text.replace(/<\/div>/gi, '\n');
 
         // Очистка множественных переносов строк
         text = text.replace(/\n{3,}/g, '\n\n');
@@ -405,7 +457,9 @@
             placeholder: 'Введите ответ на вопрос...',
             modules: {
                 toolbar: [
-                    ['bold', 'italic', 'code'],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['code'],
+                    ['link'],  // Кнопка для создания гиперссылок
                     [{ 'list': 'ordered'}, { 'list': 'bullet' }],
                     ['clean']
                 ]
@@ -414,8 +468,9 @@
 
         answerEditor.on('text-change', () => {
             const html = answerEditor.root.innerHTML;
-            const telegramHtml = convertQuillToTelegramHtml(html);
-            document.getElementById('faqAnswer').value = telegramHtml;
+            // Конвертируем в BB коды для Bitrix24
+            const bbcode = convertQuillToBBCode(html);
+            document.getElementById('faqAnswer').value = bbcode;
         });
     }
 
@@ -511,12 +566,19 @@
         const colors = ['blue', 'green', 'yellow', 'indigo', 'purple', 'pink'];
         document.getElementById('gridView').innerHTML = faqs.map((faq, idx) => {
             const color = colors[idx % colors.length];
+            // Конвертируем BB коды в HTML для корректного отображения
+            const answerHtml = convertBBCodeToHtml(faq.answer);
+            // Создаем временный элемент для извлечения текста без тегов
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = answerHtml;
+            const answerText = tempDiv.textContent || tempDiv.innerText || '';
+
             return `
                 <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 flex flex-col hover:shadow-lg transition-shadow duration-300">
                     <div class="flex-grow">
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300 mb-3">${faq.category}</span>
                         <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2 leading-tight">${faq.question}</h3>
-                        <p class="text-gray-500 dark:text-gray-400 text-sm leading-relaxed line-clamp-2">${faq.answer.substring(0, 100)}...</p>
+                        <p class="text-gray-500 dark:text-gray-400 text-sm leading-relaxed line-clamp-2">${answerText.substring(0, 100)}...</p>
                         ${faq.keywords && faq.keywords.length > 0 ? `
                             <div class="mt-3 flex flex-wrap gap-2">
                                 ${faq.keywords.map(k => `<span class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">${k}</span>`).join('')}
@@ -542,10 +604,17 @@
         const colors = ['blue', 'green', 'yellow', 'indigo', 'purple', 'pink'];
         document.getElementById('listViewBody').innerHTML = faqs.map((faq, idx) => {
             const color = colors[idx % colors.length];
+            // Конвертируем BB коды в HTML для корректного отображения
+            const answerHtml = convertBBCodeToHtml(faq.answer);
+            // Создаем временный элемент для извлечения текста без тегов
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = answerHtml;
+            const answerText = tempDiv.textContent || tempDiv.innerText || '';
+
             return `
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                     <td class="px-6 py-4 text-gray-800 dark:text-gray-200 text-sm font-medium max-w-sm truncate">${faq.question}</td>
-                    <td class="px-6 py-4 text-gray-500 dark:text-gray-400 text-sm max-w-sm truncate">${faq.answer.substring(0, 100)}...</td>
+                    <td class="px-6 py-4 text-gray-500 dark:text-gray-400 text-sm max-w-sm truncate">${answerText.substring(0, 100)}...</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${faq.category}</span>
                     </td>
@@ -609,10 +678,12 @@
 
         initAnswerEditor();
         if (answerEditor) {
+            // convertTelegramToQuillHtml уже обрабатывает BB коды через convertBBCodeToHtml
             const quillHtml = convertTelegramToQuillHtml(faq.answer);
             answerEditor.root.innerHTML = quillHtml;
-            const telegramHtml = convertQuillToTelegramHtml(answerEditor.root.innerHTML);
-            document.getElementById('faqAnswer').value = telegramHtml;
+            // Сохраняем в BB кодах для Bitrix24
+            const bbcode = convertQuillToBBCode(answerEditor.root.innerHTML);
+            document.getElementById('faqAnswer').value = bbcode;
         }
 
         document.getElementById('faqModal').style.display = 'flex';

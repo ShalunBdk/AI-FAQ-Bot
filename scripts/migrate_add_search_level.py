@@ -18,7 +18,7 @@ import os
 # Добавляем путь к проекту
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-DB_FILE = "faq_database.db"
+DB_FILE = "data/faq_database.db"
 
 
 def migrate():

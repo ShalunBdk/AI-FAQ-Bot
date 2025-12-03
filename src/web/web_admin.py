@@ -302,19 +302,79 @@ def notify_bot_reload_settings():
 
 # ========== ЭКСПОРТ ДЛЯ АКТУАЛИЗАЦИИ ==========
 
+def strip_bbcode(text, mark_links=False, link_marker='🔗'):
+    """
+    Удаляет BB коды из текста, оставляя только содержимое
+
+    :param text: Текст с BB кодами
+    :param mark_links: Если True, помечает ссылки маркером
+    :param link_marker: Маркер для ссылок (по умолчанию 🔗, для PDF используйте '[ССЫЛКА]')
+    :return: Чистый текст без BB кодов
+    """
+    if not text:
+        return text
+
+    result = text
+
+    # Ссылки: [URL=...]текст[/URL] → маркер + текст (если mark_links=True) или просто текст
+    if mark_links:
+        result = re.sub(r'\[URL=([^\]]+)\](.+?)\[/URL\]', f'{link_marker} \\2', result, flags=re.IGNORECASE | re.DOTALL)
+    else:
+        result = re.sub(r'\[URL=([^\]]+)\](.+?)\[/URL\]', r'\2', result, flags=re.IGNORECASE | re.DOTALL)
+
+    # Форматирование: [b]текст[/b] → текст (и аналогично для всех остальных)
+    result = re.sub(r'\[b\](.+?)\[/b\]', r'\1', result, flags=re.IGNORECASE | re.DOTALL)
+    result = re.sub(r'\[i\](.+?)\[/i\]', r'\1', result, flags=re.IGNORECASE | re.DOTALL)
+    result = re.sub(r'\[u\](.+?)\[/u\]', r'\1', result, flags=re.IGNORECASE | re.DOTALL)
+    result = re.sub(r'\[s\](.+?)\[/s\]', r'\1', result, flags=re.IGNORECASE | re.DOTALL)
+    result = re.sub(r'\[code\](.+?)\[/code\]', r'\1', result, flags=re.IGNORECASE | re.DOTALL)
+
+    return result
+
+
+def convert_bbcode_to_html_safe(text):
+    """
+    Безопасно удаляет BB коды из текста для использования в PDF.
+    Использует strip_bbcode вместо конвертации в HTML чтобы избежать ошибок парсинга.
+
+    :param text: Текст с BB кодами
+    :return: Чистый текст, безопасный для ReportLab Paragraph
+    """
+    if not text:
+        return text
+
+    # Удаляем BB коды, помечая ссылки текстовым маркером (т.к. PDF не поддерживает эмодзи)
+    # Используем » (правая кавычка-елочка) как визуальный индикатор ссылки
+    result = strip_bbcode(text, mark_links=True, link_marker='»')
+
+    # Экранируем специальные символы XML/HTML
+    result = result.replace('&', '&amp;')
+    result = result.replace('<', '&lt;')
+    result = result.replace('>', '&gt;')
+
+    # Обрабатываем переносы строк
+    # ReportLab Paragraph использует <br/> для переносов
+    result = result.replace('\n', '<br/>')
+
+    return result
+
+
 def replace_urls_with_placeholder(text):
     """
     Заменяет все URL в тексте на короткий placeholder "[ссылка]"
-    для экономии места в PDF документах
+    для экономии места в PDF/Excel документах.
 
-    :param text: Исходный текст с возможными URL
+    ВАЖНО: Эта функция должна вызываться ПОСЛЕ convert_bbcode_to_html() или strip_bbcode()
+
+    :param text: Исходный текст с возможными URL (БЕЗ BB кодов)
     :return: Текст с замененными URL
     """
-    # Регулярное выражение для поиска URL
+    if not text:
+        return text
+
+    # Заменяем URL на "[ссылка]"
     # Ищет: http://, https://, www., ftp:// и другие распространенные паттерны
     url_pattern = r'(?:(?:https?|ftp):\/\/)?(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)'
-
-    # Заменяем найденные URL на "[ссылка]"
     result = re.sub(url_pattern, '[ссылка]', text)
 
     return result
@@ -421,11 +481,15 @@ def generate_review_pdf(faqs, category_name):
     ]
 
     for idx, faq in enumerate(faqs, 1):
-        # Заменяем URL на "[ссылка]" для экономии места
-        question_clean = replace_urls_with_placeholder(faq['question'])
-        answer_clean = replace_urls_with_placeholder(faq['answer'])
+        # 1. Безопасно удаляем BB коды и экранируем HTML
+        question_safe = convert_bbcode_to_html_safe(faq['question'])
+        answer_safe = convert_bbcode_to_html_safe(faq['answer'])
 
-        # Ограничиваем длину текста для читаемости
+        # 2. Заменяем URL на "[ссылка]" для экономии места
+        question_clean = replace_urls_with_placeholder(question_safe)
+        answer_clean = replace_urls_with_placeholder(answer_safe)
+
+        # 3. Ограничиваем длину текста для читаемости
         question_text = question_clean[:100] + '...' if len(question_clean) > 100 else question_clean
         answer_text = answer_clean[:150] + '...' if len(answer_clean) > 150 else answer_clean
         keywords_text = ', '.join(faq.get('keywords', []))[:50]
@@ -552,14 +616,16 @@ def generate_review_excel(faqs, category_name):
         cell.alignment = Alignment(horizontal='center', vertical='top')
         cell.border = border
 
-        # Вопрос (заменяем URL на "[ссылка]")
-        question_clean = replace_urls_with_placeholder(faq['question'])
+        # Вопрос (убираем BB коды, помечая ссылки 🔗, и заменяем URL на "[ссылка]")
+        question_stripped = strip_bbcode(faq['question'], mark_links=True)
+        question_clean = replace_urls_with_placeholder(question_stripped)
         cell = ws.cell(row=row_num, column=2, value=question_clean)
         cell.alignment = cell_alignment
         cell.border = border
 
-        # Ответ (заменяем URL на "[ссылка]")
-        answer_clean = replace_urls_with_placeholder(faq['answer'])
+        # Ответ (убираем BB коды, помечая ссылки 🔗, и заменяем URL на "[ссылка]")
+        answer_stripped = strip_bbcode(faq['answer'], mark_links=True)
+        answer_clean = replace_urls_with_placeholder(answer_stripped)
         cell = ws.cell(row=row_num, column=3, value=answer_clean)
         cell.alignment = cell_alignment
         cell.border = border
@@ -580,8 +646,9 @@ def generate_review_excel(faqs, category_name):
         cell.alignment = cell_alignment
         cell.border = border
 
-        # Высота строки (автоматически подстраивается под контент очищенного текста)
-        ws.row_dimensions[row_num].height = max(60, len(answer_clean) // 10 + 20)
+        # Excel автоматически подберёт высоту строки при открытии файла
+        # благодаря wrap_text=True в cell_alignment
+        # Не устанавливаем высоту вручную - пусть Excel сделает это сам
 
         row_num += 1
 
