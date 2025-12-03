@@ -24,7 +24,7 @@ bitrix24_permissions_bp = Blueprint('bitrix24_permissions', __name__)
 # JWT секреты
 JWT_SECRET = os.getenv('JWT_SECRET', 'supersecretkey')
 REFRESH_SECRET = os.getenv('REFRESH_SECRET', 'refreshsecretkey')
-ACCESS_TOKEN_EXPIRES = '15m'
+ACCESS_TOKEN_EXPIRES = '4h'  # 4 часа для длительной работы
 REFRESH_TOKEN_EXPIRES = '7d'
 
 
@@ -230,7 +230,7 @@ def bitrix24_auth():
                 'username': user_name,
                 'role': role,
                 'domain': domain,
-                'exp': datetime.utcnow() + timedelta(minutes=15)
+                'exp': datetime.utcnow() + timedelta(hours=4)  # 4 часа для длительной работы
             },
             JWT_SECRET,
             algorithm='HS256'
@@ -273,3 +273,73 @@ def bitrix24_auth():
     except Exception as e:
         print(f"Ошибка авторизации: {e}")
         return jsonify({'error': 'Failed to authenticate'}), 500
+
+
+@bitrix24_permissions_bp.route('/refresh', methods=['POST'])
+def refresh_access_token():
+    """
+    Обновить access token используя refresh token из cookie
+    POST /api/bitrix24/permissions/refresh
+
+    Возвращает:
+        {
+            "accessToken": "...",
+            "user": {
+                "id": "123",
+                "username": "Иванов Иван",
+                "role": "admin"
+            }
+        }
+    """
+    try:
+        # Получаем refresh token из cookie
+        refresh_token = request.cookies.get('refreshToken')
+
+        if not refresh_token:
+            return jsonify({'error': 'Refresh token not found'}), 401
+
+        try:
+            # Декодируем refresh token
+            payload = jwt.decode(refresh_token, REFRESH_SECRET, algorithms=['HS256'])
+
+            user_id = payload.get('id')
+            user_name = payload.get('username')
+            role = payload.get('role')
+            domain = payload.get('domain')
+
+            # Проверяем что пользователь все еще имеет права
+            permission = check_bitrix24_permission(domain, user_id)
+
+            if not permission:
+                return jsonify({'error': 'User permissions revoked'}), 403
+
+            # Генерируем новый access token
+            access_token = jwt.encode(
+                {
+                    'id': user_id,
+                    'username': user_name,
+                    'role': permission['role'],  # Используем актуальную роль из БД
+                    'domain': domain,
+                    'exp': datetime.utcnow() + timedelta(hours=4)  # 4 часа для длительной работы
+                },
+                JWT_SECRET,
+                algorithm='HS256'
+            )
+
+            return jsonify({
+                'accessToken': access_token,
+                'user': {
+                    'id': user_id,
+                    'username': user_name,
+                    'role': permission['role']
+                }
+            })
+
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Refresh token expired, please login again'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid refresh token'}), 401
+
+    except Exception as e:
+        print(f"Ошибка обновления токена: {e}")
+        return jsonify({'error': 'Failed to refresh token'}), 500

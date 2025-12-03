@@ -37,6 +37,39 @@ function getCurrentUser() {
 }
 
 /**
+ * Обновить access token используя refresh token
+ * @returns {Promise<boolean>} true если токен успешно обновлен
+ */
+async function refreshAccessToken() {
+    try {
+        const response = await fetch('/api/bitrix24/permissions/refresh', {
+            method: 'POST',
+            credentials: 'include', // Отправляет httpOnly cookie с refresh token
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+
+            // Сохраняем новый access token
+            localStorage.setItem('accessToken', data.accessToken);
+            localStorage.setItem('user', JSON.stringify(data.user));
+
+            console.log('✅ Токен успешно обновлен');
+            return true;
+        } else {
+            console.warn('❌ Не удалось обновить токен:', response.status);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Ошибка при обновлении токена:', error);
+        return false;
+    }
+}
+
+/**
  * Выполнить fetch запрос с автоматическим добавлением Authorization заголовка
  * @param {string} url - URL для запроса
  * @param {Object} options - Опции для fetch (method, body, headers и т.д.)
@@ -66,11 +99,27 @@ async function fetchWithAuth(url, options = {}) {
     try {
         const response = await fetch(url, options);
 
-        // Если получили 401 - токен истек или невалидный
+        // Если получили 401 - токен истек, пытаемся обновить и повторить запрос
         if (response.status === 401) {
-            console.warn('Токен истек или невалиден');
-            // Можно добавить автоматический редирект на страницу входа
-            // window.location.href = '/bitrix24/auth';
+            console.warn('⚠️ Токен истек, пытаемся обновить...');
+
+            // Пытаемся обновить токен
+            const refreshed = await refreshAccessToken();
+
+            if (refreshed) {
+                // Токен обновлен, повторяем запрос с новым токеном
+                const newToken = getAuthToken();
+                options.headers = options.headers || {};
+                options.headers['Authorization'] = `Bearer ${newToken}`;
+
+                console.log('🔄 Повторяем запрос с новым токеном');
+                return await fetch(url, options);
+            } else {
+                // Не удалось обновить токен
+                console.error('❌ Не удалось обновить токен, требуется повторная авторизация');
+                // В контексте Bitrix24 просто выводим ошибку
+                // Пользователь может перезагрузить страницу
+            }
         }
 
         return response;
@@ -108,6 +157,23 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!token) {
         console.warn('JWT токен не найден. Некоторые функции могут быть недоступны.');
     } else {
-        console.log('JWT токен загружен успешно');
+        console.log('✅ JWT токен загружен успешно');
+
+        // Устанавливаем автоматическое обновление токена каждые 3.5 часа
+        // (токен живет 4 часа, обновляем с запасом)
+        const REFRESH_INTERVAL = 3.5 * 60 * 60 * 1000; // 3.5 часа в миллисекундах
+
+        setInterval(async () => {
+            console.log('⏰ Плановое обновление токена...');
+            const success = await refreshAccessToken();
+
+            if (success) {
+                console.log('✅ Токен автоматически обновлен');
+            } else {
+                console.error('❌ Не удалось автоматически обновить токен');
+            }
+        }, REFRESH_INTERVAL);
+
+        console.log(`🔄 Автоматическое обновление токена настроено (каждые 3.5 часа)`);
     }
 });
