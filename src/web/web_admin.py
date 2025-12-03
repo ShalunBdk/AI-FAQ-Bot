@@ -302,6 +302,24 @@ def notify_bot_reload_settings():
 
 # ========== ЭКСПОРТ ДЛЯ АКТУАЛИЗАЦИИ ==========
 
+def replace_urls_with_placeholder(text):
+    """
+    Заменяет все URL в тексте на короткий placeholder "[ссылка]"
+    для экономии места в PDF документах
+
+    :param text: Исходный текст с возможными URL
+    :return: Текст с замененными URL
+    """
+    # Регулярное выражение для поиска URL
+    # Ищет: http://, https://, www., ftp:// и другие распространенные паттерны
+    url_pattern = r'(?:(?:https?|ftp):\/\/)?(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)'
+
+    # Заменяем найденные URL на "[ссылка]"
+    result = re.sub(url_pattern, '[ссылка]', text)
+
+    return result
+
+
 def generate_review_pdf(faqs, category_name):
     """
     Генерация PDF документа для актуализации FAQ
@@ -403,9 +421,13 @@ def generate_review_pdf(faqs, category_name):
     ]
 
     for idx, faq in enumerate(faqs, 1):
+        # Заменяем URL на "[ссылка]" для экономии места
+        question_clean = replace_urls_with_placeholder(faq['question'])
+        answer_clean = replace_urls_with_placeholder(faq['answer'])
+
         # Ограничиваем длину текста для читаемости
-        question_text = faq['question'][:100] + '...' if len(faq['question']) > 100 else faq['question']
-        answer_text = faq['answer'][:150] + '...' if len(faq['answer']) > 150 else faq['answer']
+        question_text = question_clean[:100] + '...' if len(question_clean) > 100 else question_clean
+        answer_text = answer_clean[:150] + '...' if len(answer_clean) > 150 else answer_clean
         keywords_text = ', '.join(faq.get('keywords', []))[:50]
 
         # Статус с чекбоксами на разных строках (используем HTML br для Paragraph)
@@ -530,13 +552,15 @@ def generate_review_excel(faqs, category_name):
         cell.alignment = Alignment(horizontal='center', vertical='top')
         cell.border = border
 
-        # Вопрос
-        cell = ws.cell(row=row_num, column=2, value=faq['question'])
+        # Вопрос (заменяем URL на "[ссылка]")
+        question_clean = replace_urls_with_placeholder(faq['question'])
+        cell = ws.cell(row=row_num, column=2, value=question_clean)
         cell.alignment = cell_alignment
         cell.border = border
 
-        # Ответ
-        cell = ws.cell(row=row_num, column=3, value=faq['answer'])
+        # Ответ (заменяем URL на "[ссылка]")
+        answer_clean = replace_urls_with_placeholder(faq['answer'])
+        cell = ws.cell(row=row_num, column=3, value=answer_clean)
         cell.alignment = cell_alignment
         cell.border = border
 
@@ -556,8 +580,8 @@ def generate_review_excel(faqs, category_name):
         cell.alignment = cell_alignment
         cell.border = border
 
-        # Высота строки (автоматически подстраивается под контент)
-        ws.row_dimensions[row_num].height = max(60, len(faq['answer']) // 10 + 20)
+        # Высота строки (автоматически подстраивается под контент очищенного текста)
+        ws.row_dimensions[row_num].height = max(60, len(answer_clean) // 10 + 20)
 
         row_num += 1
 
