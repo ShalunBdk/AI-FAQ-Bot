@@ -121,36 +121,76 @@
         .toast.removing {
             animation: slideOut 0.3s ease-out forwards;
         }
+
+        /* Стили для сворачивающегося сайдбара */
+        .sidebar-expanded {
+            width: 16rem; /* 256px / w-64 */
+        }
+
+        .sidebar-collapsed {
+            width: 4.5rem; /* 72px - достаточно для иконок с padding */
+        }
+
+        .sidebar-collapsed .sidebar-text {
+            display: none;
+        }
+
+        /* Плавный переход для текста */
+        .sidebar-text {
+            transition: opacity 0.2s ease-in-out;
+        }
+
+        .sidebar-collapsed .sidebar-text {
+            opacity: 0;
+        }
+
+        /* Центрирование header сайдбара когда он свёрнут */
+        #sidebar.sidebar-collapsed > div > div:first-child > div:first-child {
+            justify-content: center !important;
+        }
+
+        /* Центрирование навигации когда сайдбар свёрнут */
+        #sidebar.sidebar-collapsed nav a {
+            justify-content: center !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
     </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark font-display min-h-screen">
     <div class="flex">
         <!-- Sidebar -->
-        <aside class="w-64 flex-shrink-0 bg-white dark:bg-[#182431] border-r border-gray-200 dark:border-gray-700 p-4">
+        <aside id="sidebar" class="sidebar-expanded bg-white dark:bg-[#182431] border-r border-gray-200 dark:border-gray-700 p-4 transition-all duration-300">
             <div class="flex flex-col h-full">
-                <div class="flex items-center gap-3 mb-8">
-                    <div class="bg-primary rounded-lg size-10 flex items-center justify-center">
-                        <span class="material-symbols-outlined text-white">support_agent</span>
+                <div class="mb-6">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="bg-primary rounded-lg size-10 flex items-center justify-center flex-shrink-0">
+                            <span class="material-symbols-outlined text-white">support_agent</span>
+                        </div>
+                        <h1 class="sidebar-text text-lg font-bold text-gray-800 dark:text-white whitespace-nowrap overflow-hidden">Админ-панель</h1>
                     </div>
-                    <h1 class="text-lg font-bold text-gray-800 dark:text-white">Админ-панель</h1>
+                    <button onclick="toggleSidebar()" class="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="Свернуть/развернуть меню">
+                        <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 text-xl">menu</span>
+                        <span class="sidebar-text text-sm font-medium text-gray-600 dark:text-gray-400">Свернуть меню</span>
+                    </button>
                 </div>
 
             <nav class="flex flex-col gap-2 flex-grow">
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/">
-                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">import_contacts</span>
-                    <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">База знаний</p>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/" title="База знаний">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 flex-shrink-0">import_contacts</span>
+                    <p class="sidebar-text text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal whitespace-nowrap overflow-hidden">База знаний</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/logs">
-                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">receipt_long</span>
-                    <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Логи</p>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/logs" title="Логи">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 flex-shrink-0">receipt_long</span>
+                    <p class="sidebar-text text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal whitespace-nowrap overflow-hidden">Логи</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="{{ config.get('BASE_PATH', '') }}/admin/permissions">
-                    <span class="material-symbols-outlined fill">admin_panel_settings</span>
-                    <p class="text-sm font-bold leading-normal">Права доступа</p>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="{{ config.get('BASE_PATH', '') }}/admin/permissions" title="Права доступа">
+                    <span class="material-symbols-outlined fill flex-shrink-0">admin_panel_settings</span>
+                    <p class="sidebar-text text-sm font-bold leading-normal whitespace-nowrap overflow-hidden">Права доступа</p>
                 </a>
-                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/settings">
-                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400">settings</span>
-                    <p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Настройки</p>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/settings" title="Настройки">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 flex-shrink-0">settings</span>
+                    <p class="sidebar-text text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal whitespace-nowrap overflow-hidden">Настройки</p>
                 </a>
             </nav>
         </div>
@@ -285,6 +325,39 @@
         let currentUserRole = null;
         let employees = [];
         let loadingEmployees = false;
+
+        // ========== ФУНКЦИИ ДЛЯ САЙДБАРА ==========
+
+        // Переключение состояния сайдбара (свернут/развернут)
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const isExpanded = sidebar.classList.contains('sidebar-expanded');
+
+            if (isExpanded) {
+                sidebar.classList.remove('sidebar-expanded');
+                sidebar.classList.add('sidebar-collapsed');
+                localStorage.setItem('sidebarState', 'collapsed');
+            } else {
+                sidebar.classList.remove('sidebar-collapsed');
+                sidebar.classList.add('sidebar-expanded');
+                localStorage.setItem('sidebarState', 'expanded');
+            }
+        }
+
+        // Восстановление состояния сайдбара при загрузке страницы
+        function restoreSidebarState() {
+            const savedState = localStorage.getItem('sidebarState');
+            if (savedState === 'collapsed') {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.remove('sidebar-expanded');
+                sidebar.classList.add('sidebar-collapsed');
+            }
+        }
+
+        // Вызываем при загрузке страницы
+        restoreSidebarState();
+
+        // ========== КОНЕЦ ФУНКЦИЙ ДЛЯ САЙДБАРА ==========
 
         // Toast уведомления
         function showToast(message, type = 'info') {
