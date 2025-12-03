@@ -553,10 +553,13 @@
             }
 
             allEmployees = [];
+            let start = 0;
+            let hasMore = true;
+            let total = 0;
 
-            // Рекурсивная функция для загрузки всех страниц
-            const loadPage = async (start = 0) => {
-                return new Promise((resolve, reject) => {
+            // Загружаем все страницы
+            while (hasMore) {
+                const page = await new Promise((resolve, reject) => {
                     window.parent.BX24.callMethod('user.get', {
                         start: start,
                         filter: { ACTIVE: true }
@@ -564,28 +567,28 @@
                         if (result.error()) {
                             reject(new Error(result.error()));
                         } else {
-                            const data = result.data();
                             resolve({
-                                items: data,
+                                items: result.data(),
                                 total: result.total(),
-                                next: result.more() ? start + 50 : null
+                                hasMore: result.more()
                             });
                         }
                     });
                 });
-            };
 
-            // Загружаем первую страницу
-            let page = await loadPage(0);
-            allEmployees = allEmployees.concat(page.items);
-
-            console.log(`Загружено сотрудников: ${allEmployees.length} из ${page.total}`);
-
-            // Загружаем остальные страницы
-            while (page.next !== null) {
-                page = await loadPage(page.next);
                 allEmployees = allEmployees.concat(page.items);
-                console.log(`Загружено сотрудников: ${allEmployees.length} из ${page.total}`);
+                total = page.total;
+                hasMore = page.hasMore;
+
+                console.log(`Загружено сотрудников: ${allEmployees.length} из ${total}`);
+
+                // Защита от бесконечного цикла
+                if (allEmployees.length >= total) {
+                    console.log('Достигнуто максимальное количество сотрудников');
+                    break;
+                }
+
+                start += 50;
             }
 
             // Сортируем по имени
@@ -595,7 +598,7 @@
                 return nameA.localeCompare(nameB);
             });
 
-            console.log(`Всего загружено сотрудников: ${allEmployees.length}`);
+            console.log(`✅ Всего загружено сотрудников: ${allEmployees.length}`);
 
             filteredEmployees = allEmployees;
             displayEmployees();
