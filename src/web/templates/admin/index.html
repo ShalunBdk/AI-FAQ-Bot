@@ -733,18 +733,22 @@
         // Формируем URL профиля
         const profileUrl = `https://${domain}/company/personal/user/${employee.ID}/`;
 
-        // BB код для вставки
-        const bbcode = `[URL=${profileUrl}]🙍🏻‍♂️ ${fullName}[/URL]`;
-
         // Получаем текущую позицию курсора
         const range = quillEditorForMention.getSelection(true);
         const position = range ? range.index : quillEditorForMention.getLength();
 
-        // Вставляем текст
-        quillEditorForMention.insertText(position, bbcode);
+        // Вставляем HTML ссылку (Quill автоматически обработает её)
+        // Quill API: insertText для обычного текста, но для ссылки используем clipboard
+        const mentionText = `🙍🏻‍♂️ ${fullName}`;
 
-        // Перемещаем курсор в конец вставленного текста
-        quillEditorForMention.setSelection(position + bbcode.length);
+        // Вставляем текст и делаем его ссылкой
+        quillEditorForMention.insertText(position, mentionText, 'link', profileUrl);
+
+        // Добавляем пробел после ссылки для удобства продолжения набора
+        quillEditorForMention.insertText(position + mentionText.length, ' ');
+
+        // Перемещаем курсор после вставленной ссылки и пробела
+        quillEditorForMention.setSelection(position + mentionText.length + 1);
 
         // Закрываем модальное окно
         closeMentionEmployeeModal();
