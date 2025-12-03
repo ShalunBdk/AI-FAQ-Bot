@@ -682,17 +682,18 @@
                 // Инициалы для аватара (первая буква фамилии и имени)
                 const initials = `${lastName.charAt(0)}${firstName.charAt(0)}`.toUpperCase() || '?';
 
-                // Цвет аватара на основе хеша имени
+                // Яркие цвета для аватара (без серых, всегда контрастные с фоном)
                 const colors = [
-                    'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500',
-                    'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500'
+                    'bg-blue-600', 'bg-green-600', 'bg-orange-500', 'bg-red-600',
+                    'bg-purple-600', 'bg-pink-600', 'bg-indigo-600', 'bg-teal-600',
+                    'bg-cyan-600', 'bg-emerald-600', 'bg-violet-600', 'bg-fuchsia-600'
                 ];
                 const colorIndex = (emp.ID || 0) % colors.length;
                 const avatarColor = colors[colorIndex];
 
                 return `
                     <div class="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg cursor-pointer transition-colors" onclick='selectEmployee(${JSON.stringify(emp).replace(/'/g, "&apos;")})'>
-                        <div class="w-9 h-9 rounded-full ${avatarColor} text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                        <div class="w-10 h-10 rounded-full ${avatarColor} text-white flex items-center justify-center font-bold text-base flex-shrink-0" style="line-height: 1;">
                             ${initials}
                         </div>
                         <div class="flex-1 min-w-0">
