@@ -233,8 +233,27 @@ let currentStatsperiodId = null;
 // Sidebar toggle
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
-    sidebar.classList.toggle('sidebar-expanded');
-    sidebar.classList.toggle('sidebar-collapsed');
+    const isExpanded = sidebar.classList.contains('sidebar-expanded');
+
+    if (isExpanded) {
+        sidebar.classList.remove('sidebar-expanded');
+        sidebar.classList.add('sidebar-collapsed');
+        localStorage.setItem('sidebarState', 'collapsed');
+    } else {
+        sidebar.classList.remove('sidebar-collapsed');
+        sidebar.classList.add('sidebar-expanded');
+        localStorage.setItem('sidebarState', 'expanded');
+    }
+}
+
+// Восстановление состояния сайдбара при загрузке страницы
+function restoreSidebarState() {
+    const savedState = localStorage.getItem('sidebarState');
+    if (savedState === 'collapsed') {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.remove('sidebar-expanded');
+        sidebar.classList.add('sidebar-collapsed');
+    }
 }
 
 // Toast
@@ -594,12 +613,52 @@ function displayStatistics(stats) {
 }
 
 // Экспорт отчета
-function exportReport(format) {
+async function exportReport(format) {
     if (!currentStatsperiodId) return;
 
-    const url = `./api/test-periods/${currentStatsperiodId}/export?format=${format}`;
-    window.location.href = url;
-    showToast(`Скачивание ${format.toUpperCase()} отчета...`, 'success');
+    try {
+        showToast(`Скачивание ${format.toUpperCase()} отчета...`, 'success');
+
+        const url = `./api/test-periods/${currentStatsperiodId}/export?format=${format}`;
+        const response = await fetchWithAuth(url);
+
+        if (!response.ok) {
+            throw new Error('Ошибка при скачивании отчета');
+        }
+
+        // Получаем blob данных
+        const blob = await response.blob();
+
+        // Определяем имя файла и тип
+        let filename = `test_period_${currentStatsperiodId}_report`;
+        let mimeType;
+
+        if (format === 'excel') {
+            filename += '.xlsx';
+            mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        } else if (format === 'json') {
+            filename += '.json';
+            mimeType = 'application/json';
+        } else if (format === 'csv') {
+            filename += '.csv';
+            mimeType = 'text/csv';
+        }
+
+        // Создаем ссылку для скачивания
+        const downloadUrl = window.URL.createObjectURL(new Blob([blob], { type: mimeType }));
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+
+        showToast(`${format.toUpperCase()} отчет скачан успешно`, 'success');
+    } catch (error) {
+        console.error('Ошибка экспорта:', error);
+        showToast('Ошибка при скачивании отчета', 'error');
+    }
 }
 
 // Просмотр неудачных запросов
@@ -648,6 +707,7 @@ async function showFailedQueries() {
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
+    restoreSidebarState();
     loadActivePeriod();
     loadPeriods();
 });
