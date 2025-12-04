@@ -5,15 +5,10 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Права доступа - Панель администратора</title>
 
-    <!-- Tailwind CSS + Custom Styles -->
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet"/>
-
-    <!-- Auth Module -->
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 
     <style>
-
-        /* Toast Notifications */
         #toast-container {
             position: fixed;
             top: 20px;
@@ -122,34 +117,25 @@
             animation: slideOut 0.3s ease-out forwards;
         }
 
-        /* Стили для сворачивающегося сайдбара */
+        /* Collapsible sidebar */
         .sidebar-expanded {
-            width: 16rem; /* 256px / w-64 */
+            width: 16rem;
         }
-
         .sidebar-collapsed {
-            width: 4.5rem; /* 72px - достаточно для иконок с padding */
+            width: 4.5rem;
         }
-
         .sidebar-collapsed .sidebar-text {
             display: none;
         }
-
-        /* Плавный переход для текста */
         .sidebar-text {
             transition: opacity 0.2s ease-in-out;
         }
-
         .sidebar-collapsed .sidebar-text {
             opacity: 0;
         }
-
-        /* Центрирование header сайдбара когда он свёрнут */
         #sidebar.sidebar-collapsed > div > div:first-child > div:first-child {
             justify-content: center !important;
         }
-
-        /* Центрирование навигации когда сайдбар свёрнут */
         #sidebar.sidebar-collapsed nav a {
             justify-content: center !important;
             padding-left: 0 !important;
@@ -159,7 +145,7 @@
 </head>
 <body class="bg-background-light dark:bg-background-dark font-display min-h-screen">
     <div class="flex">
-        <!-- Sidebar -->
+        
         <aside id="sidebar" class="sidebar-expanded bg-white dark:bg-[#182431] border-r border-gray-200 dark:border-gray-700 p-4 transition-all duration-300">
             <div class="flex flex-col h-full">
                 <div class="mb-6">
@@ -196,7 +182,7 @@
         </div>
     </aside>
 
-        <!-- Main Content -->
+        
         <main class="flex-1 p-8 overflow-y-auto">
             <div class="max-w-7xl mx-auto">
                 <div class="flex justify-between items-center mb-6">

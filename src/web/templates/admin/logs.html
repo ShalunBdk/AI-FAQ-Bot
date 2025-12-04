@@ -5,41 +5,29 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Логи запросов - Панель администратора</title>
 
-    <!-- Tailwind CSS + Custom Styles -->
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet"/>
-
-    <!-- Auth Module -->
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 
-    <!-- Стили для сворачивающегося сайдбара -->
     <style>
+        /* Collapsible sidebar */
         .sidebar-expanded {
-            width: 16rem; /* 256px / w-64 */
+            width: 16rem;
         }
-
         .sidebar-collapsed {
-            width: 4.5rem; /* 72px - достаточно для иконок с padding */
+            width: 4.5rem;
         }
-
         .sidebar-collapsed .sidebar-text {
             display: none;
         }
-
-        /* Плавный переход для текста */
         .sidebar-text {
             transition: opacity 0.2s ease-in-out;
         }
-
         .sidebar-collapsed .sidebar-text {
             opacity: 0;
         }
-
-        /* Центрирование header сайдбара когда он свёрнут */
         #sidebar.sidebar-collapsed > div > div:first-child > div:first-child {
             justify-content: center !important;
         }
-
-        /* Центрирование навигации когда сайдбар свёрнут */
         #sidebar.sidebar-collapsed nav a {
             justify-content: center !important;
             padding-left: 0 !important;
@@ -50,7 +38,7 @@
 
 <body class="font-display bg-background-light dark:bg-background-dark text-[#1F2937] dark:text-gray-200">
 <div class="flex min-h-screen">
-    <!-- Sidebar -->
+    
     <aside id="sidebar" class="sidebar-expanded bg-white dark:bg-[#182431] border-r border-gray-200 dark:border-gray-700 p-4 transition-all duration-300">
         <div class="flex flex-col h-full">
             <div class="mb-6">
@@ -87,23 +75,23 @@
         </div>
     </aside>
 
-    <!-- Main Content -->
+    
     <main class="flex-1 p-6 lg:p-10">
         <div class="max-w-7xl mx-auto">
-            <!-- Header -->
+            
             <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-gray-800 dark:text-white text-3xl font-bold leading-tight">Логи запросов</h1>
                     <p class="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">Просмотр истории взаимодействия пользователей с чат-ботом.</p>
                 </div>
                 <div class="flex gap-3">
-                    <!-- Кнопка настройки столбцов -->
+                    
                     <div class="relative">
                         <button onclick="toggleColumnsDropdown()" class="flex items-center justify-center gap-2 rounded-lg h-11 px-5 bg-gray-500 text-white text-sm font-bold shadow-sm hover:bg-gray-600 transition-colors">
                             <span class="material-symbols-outlined text-xl">view_column</span>
                             <span class="truncate">Столбцы</span>
                         </button>
-                        <!-- Dropdown для выбора столбцов -->
+                        
                         <div id="columnsDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
                             <div class="p-3">
                                 <div class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Отображаемые столбцы:</div>
@@ -145,7 +133,7 @@
                 </div>
             </div>
 
-            <!-- Statistics -->
+            
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                 <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 text-center">
                     <h3 id="stat-total-queries" class="text-gray-800 dark:text-white text-3xl font-bold mb-1">0</h3>
@@ -173,7 +161,7 @@
                 </div>
             </div>
 
-            <!-- Filters -->
+            
             <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-gray-800 dark:text-white text-xl font-bold">Фильтры</h2>
@@ -223,7 +211,7 @@
                 </div>
             </div>
 
-            <!-- Loading/No Data Messages -->
+            
             <div id="loading" class="text-center py-12 text-primary" style="display: none;">
                 <span class="material-symbols-outlined text-4xl animate-spin inline-block mb-2">refresh</span>
                 <p>Загрузка данных...</p>
@@ -234,7 +222,7 @@
                 <p class="text-xl">Нет данных для отображения</p>
             </div>
 
-            <!-- Table Container -->
+            
             <div id="table-container" class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
@@ -254,7 +242,7 @@
                     </table>
                 </div>
 
-                <!-- Pagination -->
+                
                 <div class="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#182431] px-4 py-3 sm:px-6">
                     <div class="flex flex-1 justify-between sm:hidden">
                         <button onclick="changePage(currentPage - 1)" class="relative inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Назад</button>
