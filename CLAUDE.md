@@ -150,15 +150,26 @@ get_bot_setting(key), update_bot_setting(key, value), get_bot_settings() → Dic
 
 # Analytics
 get_logs(filters), get_statistics(filters), get_search_level_statistics()
+
+# Test Periods
+create_test_period(name, description) → int
+end_test_period(period_id) → bool
+get_test_periods() → List[Dict]
+get_active_test_period() → Dict
+archive_current_logs(period_id) → Dict
+clear_unarchived_logs() → Dict
+get_period_statistics(period_id) → Dict
+get_failed_queries_for_period(period_id, limit) → List[Dict]
 ```
 
 **Tables:**
 - `faq` (id, category, question, answer, keywords)
-- `query_logs` (user_id, username, query_text, platform, timestamp)
-- `answer_logs` (query_log_id, faq_id, similarity_score, answer_shown, search_level)
-- `rating_logs` (answer_log_id, user_id, rating)
+- `query_logs` (user_id, username, query_text, platform, timestamp, period_id)
+- `answer_logs` (query_log_id, faq_id, similarity_score, answer_shown, search_level, period_id)
+- `rating_logs` (answer_log_id, user_id, rating, period_id)
 - `bot_settings` (key, value)
 - `bitrix24_permissions` (domain, user_id, role)
+- `test_periods` (id, name, description, start_date, end_date, status)
 
 ### 3. Bots
 
@@ -177,10 +188,18 @@ get_logs(filters), get_statistics(filters), get_search_level_statistics()
 **Routes:**
 - `GET/POST /admin/` - FAQ management
 - `GET /admin/logs` - Analytics
+- `GET /admin/test-periods` - Test periods management & statistics
 - `GET/POST /admin/settings` - Bot settings
 - `POST /admin/retrain` - Rebuild ChromaDB + notify bots
 - `POST /admin/api/optimize-keywords` - Lemmatize and deduplicate keywords
 - `GET /admin/api/search-level-stats` - Cascade search statistics
+- `GET /admin/api/test-periods/list` - Get all test periods
+- `POST /admin/api/test-periods/create` - Create new test period
+- `POST /admin/api/test-periods/{id}/end` - End test period
+- `POST /admin/api/test-periods/{id}/archive` - Archive logs
+- `GET /admin/api/test-periods/{id}/statistics` - Get period statistics
+- `GET /admin/api/test-periods/{id}/export?format=excel|json|csv` - Export report
+- `GET /admin/api/test-periods/{id}/failed-queries` - Get failed queries
 
 **UI Features:**
 - "Optimize" button in FAQ form - automatically removes duplicate word forms
@@ -245,6 +264,34 @@ Or use the web UI "Optimize" button in FAQ form.
 source venv/Scripts/activate
 python scripts/test_cascade_search.py
 ```
+
+### Manage test periods
+```python
+from src.core.database import (
+    create_test_period, end_test_period,
+    archive_current_logs, clear_unarchived_logs,
+    get_period_statistics
+)
+
+# Create test period
+period_id = create_test_period("Тестовая группа #1", "Описание")
+
+# During testing, logs are automatically linked to active period
+
+# Archive logs
+archive_current_logs(period_id)
+
+# End period
+end_test_period(period_id)
+
+# Get statistics
+stats = get_period_statistics(period_id)
+
+# Clear unarchived logs (before production launch)
+clear_unarchived_logs()
+```
+
+See `docs/TEST_PERIODS_GUIDE.md` for detailed workflow.
 
 ### Database Migrations
 **Все таблицы создаются автоматически** при первом запуске через `init_database()`.

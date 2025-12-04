@@ -63,6 +63,10 @@
                     <span class="material-symbols-outlined fill flex-shrink-0">receipt_long</span>
                     <p class="sidebar-text text-sm font-bold leading-normal whitespace-nowrap overflow-hidden">Логи</p>
                 </a>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/test-periods" title="Тестирование">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 flex-shrink-0">science</span>
+                    <p class="sidebar-text text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal whitespace-nowrap overflow-hidden">Тестирование</p>
+                </a>
                 <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="{{ config.get('BASE_PATH', '') }}/admin/permissions" title="Права доступа">
                     <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 flex-shrink-0">admin_panel_settings</span>
                     <p class="sidebar-text text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal whitespace-nowrap overflow-hidden">Права доступа</p>
@@ -165,10 +169,16 @@
             <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-gray-800 dark:text-white text-xl font-bold">Фильтры</h2>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="filter-no-answer" onchange="applyFilters()" class="w-5 h-5 text-red-600 rounded focus:ring-red-500">
-                        <span class="text-red-600 dark:text-red-400 font-semibold text-sm">Только без ответа</span>
-                    </label>
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="filter-no-answer" onchange="applyFilters()" class="w-5 h-5 text-red-600 rounded focus:ring-red-500">
+                            <span class="text-red-600 dark:text-red-400 font-semibold text-sm">Только без ответа</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="filter-show-archived" onchange="applyFilters()" class="w-5 h-5 text-gray-600 rounded focus:ring-gray-500">
+                            <span class="text-gray-600 dark:text-gray-400 font-semibold text-sm">Показать архивированные</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
@@ -563,6 +573,9 @@
         const noAnswer = document.getElementById("filter-no-answer").checked;
         if (noAnswer) currentFilters.no_answer = "true";
 
+        const showArchived = document.getElementById("filter-show-archived").checked;
+        if (showArchived) currentFilters.show_archived = "true";
+
         loadLogs(1);
         loadStatistics();
     }
@@ -575,6 +588,7 @@
         document.getElementById("filter-date-from").value = "";
         document.getElementById("filter-date-to").value = "";
         document.getElementById("filter-no-answer").checked = false;
+        document.getElementById("filter-show-archived").checked = false;
         currentFilters = {};
         loadLogs(1);
         loadStatistics();

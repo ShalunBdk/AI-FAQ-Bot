@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html class="light" lang="ru">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Тестовые периоды - Панель администратора</title>
+
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet"/>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        /* Collapsible sidebar */
+        .sidebar-expanded {
+            width: 16rem;
+        }
+        .sidebar-collapsed {
+            width: 4.5rem;
+        }
+        .sidebar-collapsed .sidebar-text {
+            display: none;
+        }
+        .sidebar-text {
+            transition: opacity 0.2s ease-in-out;
+        }
+        .sidebar-collapsed .sidebar-text {
+            opacity: 0;
+        }
+        #sidebar.sidebar-collapsed > div > div:first-child > div:first-child {
+            justify-content: center !important;
+        }
+        #sidebar.sidebar-collapsed nav a {
+            justify-content: center !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+
+    </style>
+</head>
+
+<body class="font-display bg-background-light dark:bg-background-dark text-[#1F2937] dark:text-gray-200">
+<div class="flex min-h-screen">
+    <aside id="sidebar" class="sidebar-expanded bg-white dark:bg-[#182431] border-r border-gray-200 dark:border-gray-700 p-4 transition-all duration-300">
+        <div class="flex flex-col h-full">
+            <div class="mb-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="bg-primary rounded-lg size-10 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-white">support_agent</span>
+                    </div>
+                    <h1 class="sidebar-text text-lg font-bold text-gray-800 dark:text-white whitespace-nowrap overflow-hidden">Админ-панель</h1>
+                </div>
+                <button onclick="toggleSidebar()" class="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="Свернуть/развернуть меню">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 text-xl">menu</span>
+                    <span class="sidebar-text text-sm font-medium text-gray-600 dark:text-gray-400">Свернуть меню</span>
+                </button>
+            </div>
+
+            <nav class="flex flex-col gap-2 flex-grow">
+                <a class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="./" title="База знаний">
+                    <span class="material-symbols-outlined fill flex-shrink-0">import_contacts</span>
+                    <p class="sidebar-text text-sm font-medium leading-normal whitespace-nowrap overflow-hidden text-gray-800 dark:text-gray-200">База знаний</p>
+                </a>
+                <a class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="./logs" title="Логи">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 flex-shrink-0">receipt_long</span>
+                    <p class="sidebar-text text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal whitespace-nowrap overflow-hidden">Логи</p>
+                </a>
+                <a class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary dark:text-white" href="./test-periods" title="Тестирование">
+                    <span class="material-symbols-outlined fill flex-shrink-0">science</span>
+                    <p class="sidebar-text text-sm font-bold leading-normal whitespace-nowrap overflow-hidden">Тестирование</p>
+                </a>
+                <a class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="./permissions" title="Права доступа">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 flex-shrink-0">admin_panel_settings</span>
+                    <p class="sidebar-text text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal whitespace-nowrap overflow-hidden">Права доступа</p>
+                </a>
+                <a class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" href="./settings" title="Настройки">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-400 flex-shrink-0">settings</span>
+                    <p class="sidebar-text text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal whitespace-nowrap overflow-hidden">Настройки</p>
+                </a>
+            </nav>
+        </div>
+    </aside>
+
+    <main class="flex-1 p-6">
+        <div class="max-w-7xl mx-auto">
+            <!-- Заголовок -->
+            <div class="mb-6">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Управление тестовыми периодами</h1>
+                <p class="text-gray-600">Создавайте тестовые периоды, собирайте статистику и анализируйте результаты</p>
+            </div>
+
+            <!-- Активный период -->
+            <div id="activePeriodCard" class="mb-6 hidden">
+                <div class="bg-white rounded-xl shadow-lg border-2 border-green-500 p-6">
+                    <div class="flex items-start justify-between gap-6">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="bg-green-500 rounded-lg p-2">
+                                    <span class="material-symbols-outlined text-white text-2xl">science</span>
+                                </div>
+                                <div>
+                                    <span class="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full mb-2">⚡ АКТИВЕН</span>
+                                    <h3 class="text-gray-800 text-lg font-bold">Тестовый период</h3>
+                                </div>
+                            </div>
+                            <h4 id="activePeriodName" class="text-gray-800 text-2xl font-bold mb-2"></h4>
+                            <p id="activePeriodDescription" class="text-gray-600 text-base mb-3"></p>
+                            <div class="flex items-center gap-2 text-gray-500 text-sm">
+                                <span class="material-symbols-outlined text-lg">schedule</span>
+                                <span id="activePeriodDates"></span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <button onclick="archiveActivePeriod()" class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-bold hover:bg-green-600 transition-colors shadow-sm">
+                                <span class="material-symbols-outlined text-lg">archive</span>
+                                <span>Архивировать логи</span>
+                            </button>
+                            <button onclick="endActivePeriod()" class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition-colors shadow-sm">
+                                <span class="material-symbols-outlined text-lg">stop_circle</span>
+                                <span>Завершить период</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Действия -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+                <div class="flex flex-wrap gap-3">
+                    <button onclick="showCreatePeriodModal()" class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                        <span class="material-symbols-outlined text-sm">add</span>
+                        <span>Создать тестовый период</span>
+                    </button>
+                    <button onclick="clearUnarchived()" class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                        <span class="material-symbols-outlined text-sm">delete_sweep</span>
+                        <span>Очистить неархивированные логи</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Список периодов -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">История тестовых периодов</h2>
+                <div id="periodsList" class="space-y-3">
+                    <div class="text-center py-8 text-gray-500">
+                        <span class="material-symbols-outlined text-4xl mb-2">hourglass_empty</span>
+                        <p>Загрузка...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Модальное окно создания периода -->
+<div id="createPeriodModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50" onclick="hideCreatePeriodModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+        <div class="p-6">
+            <h3 class="text-gray-800 text-xl font-bold mb-4">Создать тестовый период</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Название</label>
+                    <input type="text" id="periodName" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" placeholder="Тестовая группа #1">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Описание</label>
+                    <textarea id="periodDescription" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" rows="3" placeholder="Первая тестовая группа из 20 сотрудников"></textarea>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="createPeriod()" class="flex-1 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm">
+                    Создать
+                </button>
+                <button onclick="hideCreatePeriodModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 text-sm font-bold rounded-lg hover:bg-gray-300 transition-colors shadow-sm">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно статистики периода -->
+<div id="statsModal" class="fixed inset-0 bg-black/70 items-center justify-center" style="display: none; z-index: 9999;" onclick="if(event.target === this) hideStatsModal()">
+    <div class="bg-white rounded-xl shadow-xl p-6 max-w-5xl w-full mx-8 flex flex-col" style="max-height: 85vh;">
+        <!-- Заголовок -->
+        <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+            <h3 class="text-gray-800 text-xl font-bold flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">analytics</span>
+                Статистика тестового периода
+            </h3>
+            <button onclick="hideStatsModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <span class="material-symbols-outlined text-2xl">close</span>
+            </button>
+        </div>
+
+        <!-- Контент (с прокруткой) -->
+        <div class="flex-1 overflow-y-auto mb-4">
+            <div id="statsContent" class="space-y-5">
+                <!-- Будет заполнено через JavaScript -->
+            </div>
+        </div>
+
+        <!-- Кнопки экспорта -->
+        <div class="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+            <button onclick="exportReport('excel')" class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-bold hover:bg-green-600 transition-colors shadow-sm">
+                <span class="material-symbols-outlined text-lg">download</span>
+                <span>Excel</span>
+            </button>
+            <button onclick="exportReport('json')" class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors shadow-sm">
+                <span class="material-symbols-outlined text-lg">code</span>
+                <span>JSON</span>
+            </button>
+            <button onclick="exportReport('csv')" class="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg text-sm font-bold hover:bg-gray-600 transition-colors shadow-sm">
+                <span class="material-symbols-outlined text-lg">table_chart</span>
+                <span>CSV</span>
+            </button>
+            <button onclick="showFailedQueries()" class="ml-auto flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition-colors shadow-sm">
+                <span class="material-symbols-outlined text-lg">error</span>
+                <span>Неудачные запросы</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast уведомления -->
+<div id="toast" class="fixed bottom-4 right-4 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg hidden transform transition-all">
+    <span id="toastMessage"></span>
+</div>
+
+<script>
+let currentActivePeriod = null;
+let currentStatsperiodId = null;
+
+// Sidebar toggle
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('sidebar-expanded');
+    sidebar.classList.toggle('sidebar-collapsed');
+}
+
+// Toast
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toastMessage');
+    toastMessage.textContent = message;
+
+    if (type === 'error') {
+        toast.classList.add('bg-red-600');
+        toast.classList.remove('bg-gray-900', 'bg-green-600');
+    } else if (type === 'success') {
+        toast.classList.add('bg-green-600');
+        toast.classList.remove('bg-gray-900', 'bg-red-600');
+    } else {
+        toast.classList.add('bg-gray-900');
+        toast.classList.remove('bg-red-600', 'bg-green-600');
+    }
+
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+// Загрузка активного периода
+async function loadActivePeriod() {
+    try {
+        const response = await fetchWithAuth('./api/test-periods/active');
+        const data = await response.json();
+
+        if (data.success && data.period) {
+            currentActivePeriod = data.period;
+            document.getElementById('activePeriodCard').classList.remove('hidden');
+            document.getElementById('activePeriodName').textContent = data.period.name;
+            document.getElementById('activePeriodDescription').textContent = data.period.description || '';
+            document.getElementById('activePeriodDates').textContent = `Начало: ${data.period.start_date}`;
+        } else {
+            document.getElementById('activePeriodCard').classList.add('hidden');
+            currentActivePeriod = null;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки активного периода:', error);
+    }
+}
+
+// Загрузка списка периодов
+async function loadPeriods() {
+    try {
+        const response = await fetchWithAuth('./api/test-periods/list');
+        const data = await response.json();
+
+        const container = document.getElementById('periodsList');
+
+        if (data.success && data.periods && data.periods.length > 0) {
+            container.innerHTML = data.periods.map(period => `
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3 mb-3">
+                                <span class="material-symbols-outlined ${period.status === 'active' ? 'text-green-500' : 'text-gray-400'}">${period.status === 'active' ? 'radio_button_checked' : 'check_circle'}</span>
+                                <h4 class="text-gray-800 text-lg font-bold flex-1">${period.name}</h4>
+                                ${period.status === 'active'
+                                    ? '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">Активен</span>'
+                                    : '<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">Завершён</span>'}
+                            </div>
+                            ${period.description ? `<p class="text-gray-600 text-sm mb-3">${period.description}</p>` : ''}
+                            <div class="flex items-center gap-2 text-gray-500 text-sm">
+                                <span class="material-symbols-outlined text-base">schedule</span>
+                                <span>${period.start_date} — ${period.end_date || 'Активен'}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <button onclick="viewStatistics(${period.id})" class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors shadow-sm">
+                                <span class="material-symbols-outlined text-lg">analytics</span>
+                                <span>Статистика</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                    <p>Нет тестовых периодов</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки периодов:', error);
+        showToast('Ошибка загрузки периодов', 'error');
+    }
+}
+
+// Модальное окно создания
+function showCreatePeriodModal() {
+    if (currentActivePeriod) {
+        showToast('Сначала завершите активный период', 'error');
+        return;
+    }
+    document.getElementById('createPeriodModal').classList.remove('hidden');
+    document.getElementById('createPeriodModal').classList.add('flex');
+}
+
+function hideCreatePeriodModal() {
+    document.getElementById('createPeriodModal').classList.add('hidden');
+    document.getElementById('createPeriodModal').classList.remove('flex');
+    document.getElementById('periodName').value = '';
+    document.getElementById('periodDescription').value = '';
+}
+
+// Создание периода
+async function createPeriod() {
+    const name = document.getElementById('periodName').value.trim();
+    const description = document.getElementById('periodDescription').value.trim();
+
+    if (!name) {
+        showToast('Введите название периода', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetchWithAuth('./api/test-periods/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+            hideCreatePeriodModal();
+            loadActivePeriod();
+            loadPeriods();
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка создания периода:', error);
+        showToast('Ошибка создания периода', 'error');
+    }
+}
+
+// Завершение периода
+async function endActivePeriod() {
+    if (!currentActivePeriod) return;
+
+    if (!confirm(`Завершить тестовый период "${currentActivePeriod.name}"?`)) return;
+
+    try {
+        const response = await fetchWithAuth(`./api/test-periods/${currentActivePeriod.id}/end`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+            loadActivePeriod();
+            loadPeriods();
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка завершения периода:', error);
+        showToast('Ошибка завершения периода', 'error');
+    }
+}
+
+// Архивация логов
+async function archiveActivePeriod() {
+    if (!currentActivePeriod) return;
+
+    if (!confirm('Архивировать все текущие логи в этот период?')) return;
+
+    try {
+        const response = await fetchWithAuth(`./api/test-periods/${currentActivePeriod.id}/archive`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка архивации логов:', error);
+        showToast('Ошибка архивации логов', 'error');
+    }
+}
+
+// Очистка неархивированных логов
+async function clearUnarchived() {
+    if (!confirm('ВНИМАНИЕ! Это удалит все логи, не привязанные к тестовым периодам. Продолжить?')) return;
+
+    try {
+        const response = await fetchWithAuth('./api/test-periods/clear-unarchived', {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка очистки логов:', error);
+        showToast('Ошибка очистки логов', 'error');
+    }
+}
+
+// Просмотр статистики
+async function viewStatistics(periodId) {
+    currentStatsperiodId = periodId;
+
+    try {
+        const response = await fetchWithAuth(`./api/test-periods/${periodId}/statistics`);
+        const data = await response.json();
+
+        if (data.success) {
+            displayStatistics(data.statistics);
+            document.getElementById('statsModal').style.display = 'flex';
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статистики:', error);
+        showToast('Ошибка загрузки статистики', 'error');
+    }
+}
+
+function hideStatsModal() {
+    document.getElementById('statsModal').style.display = 'none';
+    currentStatsperiodId = null;
+}
+
+// Отображение статистики
+function displayStatistics(stats) {
+    const content = document.getElementById('statsContent');
+
+    // Ключевые показатели
+    const levelsHtml = Object.entries(stats.search_levels || {}).map(([level, data]) => {
+        const icons = {
+            exact: '🎯',
+            keyword: '🔑',
+            semantic: '🧠',
+            direct: '📄',
+            none: '❌'
+        };
+        const names = {
+            exact: 'Точное совпадение',
+            keyword: 'Ключевые слова',
+            semantic: 'Семантика',
+            direct: 'Прямой вызов',
+            none: 'Нет ответа'
+        };
+        return `
+            <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <div class="text-2xl mb-1">${icons[level] || ''}</div>
+                <div class="text-sm text-gray-600 mb-1">${names[level] || level}</div>
+                <div class="text-xl font-bold text-gray-900">${data.count}</div>
+                <div class="text-xs text-gray-500">${data.avg_confidence}% ср. уверенность</div>
+            </div>
+        `;
+    }).join('');
+
+    content.innerHTML = `
+        <!-- Общая информация -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div class="text-sm text-blue-700 mb-1">Всего запросов</div>
+                <div class="text-3xl font-bold text-blue-900">${stats.total_queries}</div>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div class="text-sm text-green-700 mb-1">Уникальных пользователей</div>
+                <div class="text-3xl font-bold text-green-900">${stats.unique_users}</div>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                <div class="text-sm text-purple-700 mb-1">% полезности</div>
+                <div class="text-3xl font-bold text-purple-900">${stats.helpful_percentage}%</div>
+            </div>
+            <div class="bg-red-50 rounded-lg p-4 border border-red-200">
+                <div class="text-sm text-red-700 mb-1">Без ответа</div>
+                <div class="text-3xl font-bold text-red-900">${stats.no_answer_count}</div>
+            </div>
+        </div>
+
+        <!-- Уровни поиска -->
+        <div>
+            <h4 class="text-gray-800 text-lg font-bold mb-3">Распределение по уровням поиска</h4>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                ${levelsHtml}
+            </div>
+        </div>
+
+        <!-- Популярные запросы -->
+        ${stats.top_queries && stats.top_queries.length > 0 ? `
+        <div>
+            <h4 class="text-gray-800 text-lg font-bold mb-3">Популярные запросы</h4>
+            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <ol class="space-y-2">
+                    ${stats.top_queries.slice(0, 10).map(q => `
+                        <li class="flex justify-between items-center">
+                            <span class="text-gray-800">${q.query}</span>
+                            <span class="px-2 py-1 bg-gray-200 text-gray-800 rounded text-sm font-medium">${q.count}</span>
+                        </li>
+                    `).join('')}
+                </ol>
+            </div>
+        </div>
+        ` : ''}
+
+        <!-- Лучшие FAQ -->
+        ${stats.top_helpful_faqs && stats.top_helpful_faqs.length > 0 ? `
+        <div>
+            <h4 class="text-gray-800 text-lg font-bold mb-3">👍 FAQ с лучшими оценками</h4>
+            <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div class="space-y-2">
+                    ${stats.top_helpful_faqs.map(faq => `
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-800">${faq.question}</div>
+                                <div class="text-sm text-gray-600">${faq.category}</div>
+                            </div>
+                            <span class="px-2 py-1 bg-green-500 text-white rounded text-sm font-bold ml-3">+${faq.helpful_count}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+        ` : ''}
+
+        <!-- FAQ требующие улучшения -->
+        ${stats.need_improvement_faqs && stats.need_improvement_faqs.length > 0 ? `
+        <div>
+            <h4 class="text-gray-800 text-lg font-bold mb-3">⚠️ FAQ требующие улучшения</h4>
+            <div class="bg-red-50 rounded-lg p-4 border border-red-200">
+                <div class="space-y-2">
+                    ${stats.need_improvement_faqs.map(faq => `
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-800">${faq.question}</div>
+                                <div class="text-sm text-gray-600">${faq.category}</div>
+                            </div>
+                            <span class="px-2 py-1 bg-red-500 text-white rounded text-sm font-bold ml-3">-${faq.not_helpful_count}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+        ` : ''}
+    `;
+}
+
+// Экспорт отчета
+function exportReport(format) {
+    if (!currentStatsperiodId) return;
+
+    const url = `./api/test-periods/${currentStatsperiodId}/export?format=${format}`;
+    window.location.href = url;
+    showToast(`Скачивание ${format.toUpperCase()} отчета...`, 'success');
+}
+
+// Просмотр неудачных запросов
+async function showFailedQueries() {
+    if (!currentStatsperiodId) return;
+
+    try {
+        const response = await fetchWithAuth(`./api/test-periods/${currentStatsperiodId}/failed-queries`);
+        const data = await response.json();
+
+        if (data.success) {
+            const content = document.getElementById('statsContent');
+            content.innerHTML = `
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-lg font-bold text-gray-800">Неудачные запросы (для работы над ошибками)</h4>
+                    <button onclick="viewStatistics(${currentStatsperiodId})" class="text-primary hover:underline">← Вернуться к статистике</button>
+                </div>
+                <div class="bg-red-50 rounded-lg p-4 border border-red-200 max-h-96 overflow-y-auto">
+                    ${data.failed_queries.length > 0 ? `
+                        <div class="space-y-3">
+                            ${data.failed_queries.map(q => `
+                                <div class="bg-white rounded p-3 border-l-4 ${q.rating === 'not_helpful' ? 'border-red-500' : 'border-gray-400'} shadow-sm">
+                                    <div class="font-medium text-gray-800 mb-1">${q.query_text}</div>
+                                    <div class="text-sm text-gray-600">
+                                        <span class="mr-3">👤 ${q.username || 'Аноним'}</span>
+                                        <span class="mr-3">📱 ${q.platform}</span>
+                                        <span class="mr-3">🎯 ${q.search_level || 'N/A'}</span>
+                                        ${q.similarity_score ? `<span class="mr-3">📊 ${q.similarity_score.toFixed(1)}%</span>` : ''}
+                                        ${q.rating ? `<span>⭐ ${q.rating === 'not_helpful' ? '👎 Не помогло' : '👍 Помогло'}</span>` : ''}
+                                    </div>
+                                    ${q.faq_question ? `<div class="text-xs text-gray-500 mt-1">Показан FAQ: ${q.faq_question}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<p class="text-center text-gray-500 py-4">Неудачных запросов не найдено</p>'}
+                </div>
+            `;
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки неудачных запросов:', error);
+        showToast('Ошибка загрузки неудачных запросов', 'error');
+    }
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', () => {
+    loadActivePeriod();
+    loadPeriods();
+});
+</script>
+</body>
+</html>

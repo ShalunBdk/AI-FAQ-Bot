@@ -1182,6 +1182,7 @@ def get_logs():
         search_text = request.args.get('search')
         no_answer = request.args.get('no_answer', 'false').lower() == 'true'
         platform = request.args.get('platform')
+        show_archived = request.args.get('show_archived', 'false').lower() == 'true'
 
         # Получаем логи
         logs, total = database.get_logs(
@@ -1194,7 +1195,8 @@ def get_logs():
             date_to=date_to,
             search_text=search_text,
             no_answer=no_answer,
-            platform=platform
+            platform=platform,
+            show_archived=show_archived
         )
 
         # Вычисляем метаданные пагинации
@@ -1323,6 +1325,227 @@ def export_logs():
 
     except Exception as e:
         logger.error(f"Ошибка при экспорте логов: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ========== ТЕСТОВЫЕ ПЕРИОДЫ ==========
+
+@admin_bp.route('/test-periods')
+def test_periods_page():
+    """Страница управления тестовыми периодами"""
+    return render_template('admin/test_periods.html')
+
+
+@admin_bp.route('/api/test-periods/list', methods=['GET'])
+def get_test_periods():
+    """Получить список всех тестовых периодов"""
+    try:
+        periods = database.get_test_periods()
+        return jsonify({
+            "success": True,
+            "periods": periods
+        })
+    except Exception as e:
+        logger.error(f"Ошибка при получении тестовых периодов: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/test-periods/active', methods=['GET'])
+def get_active_test_period():
+    """Получить активный тестовый период"""
+    try:
+        period = database.get_active_test_period()
+        return jsonify({
+            "success": True,
+            "period": period
+        })
+    except Exception as e:
+        logger.error(f"Ошибка при получении активного периода: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/test-periods/create', methods=['POST'])
+def create_test_period():
+    """Создать новый тестовый период"""
+    try:
+        data = request.json
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+
+        if not name:
+            return jsonify({"success": False, "message": "Название периода обязательно"}), 400
+
+        period_id = database.create_test_period(name, description)
+
+        if period_id:
+            return jsonify({
+                "success": True,
+                "message": f"Тестовый период '{name}' создан",
+                "period_id": period_id
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Не удалось создать период. Возможно, уже есть активный период."
+            }), 400
+
+    except Exception as e:
+        logger.error(f"Ошибка при создании тестового периода: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/test-periods/<int:period_id>/end', methods=['POST'])
+def end_test_period(period_id):
+    """Завершить тестовый период"""
+    try:
+        success = database.end_test_period(period_id)
+
+        if success:
+            return jsonify({
+                "success": True,
+                "message": "Тестовый период завершён"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Не удалось завершить период"
+            }), 400
+
+    except Exception as e:
+        logger.error(f"Ошибка при завершении тестового периода: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/test-periods/<int:period_id>/archive', methods=['POST'])
+def archive_period_logs(period_id):
+    """Архивировать текущие логи в тестовый период"""
+    try:
+        result = database.archive_current_logs(period_id)
+
+        return jsonify({
+            "success": True,
+            "message": f"Заархивировано: {result['queries']} запросов, {result['answers']} ответов, {result['ratings']} оценок",
+            "archived": result
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при архивации логов: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/test-periods/clear-unarchived', methods=['POST'])
+def clear_unarchived_logs():
+    """Удалить неархивированные логи"""
+    try:
+        result = database.clear_unarchived_logs()
+
+        return jsonify({
+            "success": True,
+            "message": f"Удалено: {result['queries']} запросов, {result['answers']} ответов, {result['ratings']} оценок",
+            "deleted": result
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при очистке логов: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/test-periods/<int:period_id>/statistics', methods=['GET'])
+def get_period_statistics(period_id):
+    """Получить статистику по тестовому периоду"""
+    try:
+        stats = database.get_period_statistics(period_id)
+
+        if not stats:
+            return jsonify({
+                "success": False,
+                "message": "Тестовый период не найден"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "statistics": stats
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении статистики периода: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/test-periods/<int:period_id>/export', methods=['GET'])
+def export_period_report(period_id):
+    """Экспорт отчета по тестовому периоду"""
+    try:
+        from src.web.report_generator import (
+            generate_period_excel_report,
+            generate_period_json_report,
+            generate_period_csv_report
+        )
+
+        # Получаем статистику
+        stats = database.get_period_statistics(period_id)
+
+        if not stats:
+            return jsonify({
+                "success": False,
+                "message": "Тестовый период не найден"
+            }), 404
+
+        # Определяем формат экспорта
+        export_format = request.args.get('format', 'excel').lower()
+
+        if export_format == 'excel':
+            buffer = generate_period_excel_report(stats)
+            filename = f"test_period_{period_id}_{stats['period']['name']}.xlsx"
+
+            resp = make_response(buffer.getvalue())
+            resp.headers["Content-Disposition"] = f"attachment; filename={quote(filename)}"
+            resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            return resp
+
+        elif export_format == 'json':
+            json_data = generate_period_json_report(stats)
+            filename = f"test_period_{period_id}.json"
+
+            resp = make_response(json_data)
+            resp.headers["Content-Disposition"] = f"attachment; filename={filename}"
+            resp.headers["Content-Type"] = "application/json; charset=utf-8"
+            return resp
+
+        elif export_format == 'csv':
+            buffer = generate_period_csv_report(stats)
+            filename = f"test_period_{period_id}.csv"
+
+            resp = make_response(buffer.getvalue())
+            resp.headers["Content-Disposition"] = f"attachment; filename={quote(filename)}"
+            resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+            return resp
+
+        else:
+            return jsonify({
+                "success": False,
+                "message": f"Неподдерживаемый формат: {export_format}"
+            }), 400
+
+    except Exception as e:
+        logger.error(f"Ошибка при экспорте отчета: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/test-periods/<int:period_id>/failed-queries', methods=['GET'])
+def get_period_failed_queries(period_id):
+    """Получить неудачные запросы для работы над ошибками"""
+    try:
+        limit = int(request.args.get('limit', 100))
+        failed_queries = database.get_failed_queries_for_period(period_id, limit)
+
+        return jsonify({
+            "success": True,
+            "failed_queries": failed_queries
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении неудачных запросов: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 

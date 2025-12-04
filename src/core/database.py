@@ -541,7 +541,8 @@ def get_logs(
     date_to: Optional[str] = None,
     search_text: Optional[str] = None,
     no_answer: bool = False,
-    platform: Optional[str] = None
+    platform: Optional[str] = None,
+    show_archived: bool = False
 ) -> tuple[List[Dict], int]:
     """
     Получить логи с фильтрацией и пагинацией
@@ -556,6 +557,7 @@ def get_logs(
     :param search_text: Поиск по тексту запроса
     :param no_answer: Показывать только запросы без ответа (faq_id IS NULL или совпадение < SIMILARITY_THRESHOLD)
     :param platform: Фильтр по платформе ('telegram' или 'bitrix24')
+    :param show_archived: Показывать архивированные логи (по умолчанию False - только неархивированные)
     :return: (список логов, общее количество записей)
     """
     try:
@@ -625,6 +627,10 @@ def get_logs(
                 query += " AND ql.platform = ?"
                 params.append(platform)
 
+            # Фильтр архивированных логов (по умолчанию показываем только неархивированные)
+            if not show_archived:
+                query += " AND ql.period_id IS NULL"
+
             # Подсчет общего количества
             count_query = f"SELECT COUNT(*) as total FROM ({query})"
             cursor.execute(count_query, params)
@@ -665,7 +671,7 @@ def get_logs(
 
 def get_statistics() -> Dict:
     """
-    Получить статистику по логам
+    Получить статистику по логам (только неархивированные)
 
     :return: Словарь со статистикой
     """
@@ -675,24 +681,24 @@ def get_statistics() -> Dict:
 
             stats = {}
 
-            # Всего запросов
-            cursor.execute("SELECT COUNT(*) as total FROM query_logs")
+            # Всего запросов (только неархивированные)
+            cursor.execute("SELECT COUNT(*) as total FROM query_logs WHERE period_id IS NULL")
             stats["total_queries"] = cursor.fetchone()["total"]
 
-            # Всего ответов
-            cursor.execute("SELECT COUNT(*) as total FROM answer_logs")
+            # Всего ответов (только неархивированные)
+            cursor.execute("SELECT COUNT(*) as total FROM answer_logs WHERE period_id IS NULL")
             stats["total_answers"] = cursor.fetchone()["total"]
 
-            # Средняя оценка схожести
-            cursor.execute("SELECT AVG(similarity_score) as avg_score FROM answer_logs WHERE similarity_score IS NOT NULL")
+            # Средняя оценка схожести (только неархивированные)
+            cursor.execute("SELECT AVG(similarity_score) as avg_score FROM answer_logs WHERE period_id IS NULL AND similarity_score IS NOT NULL")
             result = cursor.fetchone()
             stats["avg_similarity"] = round(result["avg_score"], 2) if result["avg_score"] else 0
 
-            # Оценки
-            cursor.execute("SELECT COUNT(*) as total FROM rating_logs WHERE rating = 'helpful'")
+            # Оценки (только неархивированные)
+            cursor.execute("SELECT COUNT(*) as total FROM rating_logs WHERE period_id IS NULL AND rating = 'helpful'")
             stats["helpful_count"] = cursor.fetchone()["total"]
 
-            cursor.execute("SELECT COUNT(*) as total FROM rating_logs WHERE rating = 'not_helpful'")
+            cursor.execute("SELECT COUNT(*) as total FROM rating_logs WHERE period_id IS NULL AND rating = 'not_helpful'")
             stats["not_helpful_count"] = cursor.fetchone()["total"]
 
             # Процент полезных ответов
@@ -702,20 +708,21 @@ def get_statistics() -> Dict:
             else:
                 stats["helpful_percentage"] = 0
 
-            # Запросы без ответа (faq_id IS NULL или совпадение < порога)
+            # Запросы без ответа (faq_id IS NULL или совпадение < порога) - только неархивированные
             # Считаем уникальные запросы, а не записи в answer_logs
             cursor.execute(f"""
                 SELECT COUNT(DISTINCT ql.id) as total
                 FROM query_logs ql
                 LEFT JOIN answer_logs al ON ql.id = al.query_log_id
-                WHERE al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD}
+                WHERE ql.period_id IS NULL AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
             """)
             stats["no_answer_count"] = cursor.fetchone()["total"]
 
-            # Топ-3 самых частых вопроса
+            # Топ-3 самых частых вопроса (только неархивированные)
             cursor.execute("""
                 SELECT query_text, COUNT(*) as count
                 FROM query_logs
+                WHERE period_id IS NULL
                 GROUP BY query_text
                 ORDER BY count DESC
                 LIMIT 3
@@ -725,7 +732,7 @@ def get_statistics() -> Dict:
                 for row in cursor.fetchall()
             ]
 
-            # Топ-3 самых полезных FAQ (по количеству положительных оценок)
+            # Топ-3 самых полезных FAQ (по количеству положительных оценок) - только неархивированные
             cursor.execute("""
                 SELECT
                     f.id,
@@ -735,7 +742,7 @@ def get_statistics() -> Dict:
                 FROM rating_logs rl
                 JOIN answer_logs al ON rl.answer_log_id = al.id
                 JOIN faq f ON al.faq_id = f.id
-                WHERE rl.rating = 'helpful'
+                WHERE rl.period_id IS NULL AND rl.rating = 'helpful'
                 GROUP BY f.id
                 ORDER BY helpful_count DESC
                 LIMIT 3
@@ -750,7 +757,7 @@ def get_statistics() -> Dict:
                 for row in cursor.fetchall()
             ]
 
-            # FAQ с низкими оценками (требуют улучшения)
+            # FAQ с низкими оценками (требуют улучшения) - только неархивированные
             cursor.execute("""
                 SELECT
                     f.id,
@@ -760,7 +767,7 @@ def get_statistics() -> Dict:
                 FROM rating_logs rl
                 JOIN answer_logs al ON rl.answer_log_id = al.id
                 JOIN faq f ON al.faq_id = f.id
-                WHERE rl.rating = 'not_helpful'
+                WHERE rl.period_id IS NULL AND rl.rating = 'not_helpful'
                 GROUP BY f.id
                 ORDER BY not_helpful_count DESC
                 LIMIT 3
@@ -783,7 +790,7 @@ def get_statistics() -> Dict:
 
 def get_search_level_statistics() -> Dict:
     """
-    Получить статистику по уровням поиска
+    Получить статистику по уровням поиска (только неархивированные)
 
     :return: Словарь с количеством использований каждого уровня и средней уверенностью
     """
@@ -797,7 +804,7 @@ def get_search_level_statistics() -> Dict:
                     COUNT(*) as count,
                     AVG(similarity_score) as avg_confidence
                 FROM answer_logs
-                WHERE search_level IS NOT NULL
+                WHERE period_id IS NULL AND search_level IS NOT NULL
                 GROUP BY search_level
                 ORDER BY
                     CASE search_level
@@ -989,4 +996,537 @@ def get_all_bitrix24_domains() -> List[str]:
 
     except Exception as e:
         print(f"Ошибка при получении списка доменов Битрикс24: {e}")
+        return []
+
+
+# ============================================
+# Функции для работы с тестовыми периодами
+# ============================================
+
+def create_test_period(name: str, description: str = "") -> Optional[int]:
+    """
+    Создать новый тестовый период
+
+    :param name: Название периода (например, "Тестовая группа #1")
+    :param description: Описание периода
+    :return: ID созданного периода или None при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, нет ли активных периодов
+            cursor.execute("SELECT id FROM test_periods WHERE status = 'active'")
+            active_period = cursor.fetchone()
+
+            if active_period:
+                print(f"Ошибка: уже есть активный тестовый период (ID: {active_period['id']})")
+                return None
+
+            # Создаём новый период
+            cursor.execute(
+                "INSERT INTO test_periods (name, description, status) VALUES (?, ?, 'active')",
+                (name, description)
+            )
+            period_id = cursor.lastrowid
+
+            print(f"✅ Создан тестовый период '{name}' (ID: {period_id})")
+            return period_id
+
+    except Exception as e:
+        print(f"Ошибка при создании тестового периода: {e}")
+        return None
+
+
+def end_test_period(period_id: int) -> bool:
+    """
+    Завершить тестовый период
+
+    :param period_id: ID периода
+    :return: True если успешно, False при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, существует ли период
+            cursor.execute("SELECT status FROM test_periods WHERE id = ?", (period_id,))
+            period = cursor.fetchone()
+
+            if not period:
+                print(f"Ошибка: тестовый период с ID {period_id} не найден")
+                return False
+
+            if period['status'] == 'completed':
+                print(f"Ошибка: тестовый период {period_id} уже завершён")
+                return False
+
+            # Завершаем период
+            cursor.execute(
+                "UPDATE test_periods SET status = 'completed', end_date = CURRENT_TIMESTAMP WHERE id = ?",
+                (period_id,)
+            )
+
+            print(f"✅ Тестовый период {period_id} завершён")
+            return True
+
+    except Exception as e:
+        print(f"Ошибка при завершении тестового периода: {e}")
+        return False
+
+
+def get_test_periods() -> List[Dict]:
+    """
+    Получить список всех тестовых периодов
+
+    :return: Список тестовых периодов
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    id,
+                    name,
+                    description,
+                    start_date,
+                    end_date,
+                    status,
+                    created_at
+                FROM test_periods
+                ORDER BY created_at DESC
+            """)
+
+            periods = []
+            for row in cursor.fetchall():
+                periods.append({
+                    "id": row["id"],
+                    "name": row["name"],
+                    "description": row["description"],
+                    "start_date": convert_utc_to_utc7(row["start_date"]),
+                    "end_date": convert_utc_to_utc7(row["end_date"]) if row["end_date"] else None,
+                    "status": row["status"],
+                    "created_at": convert_utc_to_utc7(row["created_at"])
+                })
+
+            return periods
+
+    except Exception as e:
+        print(f"Ошибка при получении тестовых периодов: {e}")
+        return []
+
+
+def get_test_period(period_id: int) -> Optional[Dict]:
+    """
+    Получить информацию о тестовом периоде
+
+    :param period_id: ID периода
+    :return: Информация о периоде или None
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    id,
+                    name,
+                    description,
+                    start_date,
+                    end_date,
+                    status,
+                    created_at
+                FROM test_periods
+                WHERE id = ?
+            """, (period_id,))
+
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "description": row["description"],
+                    "start_date": convert_utc_to_utc7(row["start_date"]),
+                    "end_date": convert_utc_to_utc7(row["end_date"]) if row["end_date"] else None,
+                    "status": row["status"],
+                    "created_at": convert_utc_to_utc7(row["created_at"])
+                }
+            return None
+
+    except Exception as e:
+        print(f"Ошибка при получении тестового периода: {e}")
+        return None
+
+
+def get_active_test_period() -> Optional[Dict]:
+    """
+    Получить активный тестовый период
+
+    :return: Информация об активном периоде или None
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    id,
+                    name,
+                    description,
+                    start_date,
+                    status,
+                    created_at
+                FROM test_periods
+                WHERE status = 'active'
+            """)
+
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "description": row["description"],
+                    "start_date": convert_utc_to_utc7(row["start_date"]),
+                    "status": row["status"],
+                    "created_at": convert_utc_to_utc7(row["created_at"])
+                }
+            return None
+
+    except Exception as e:
+        print(f"Ошибка при получении активного тестового периода: {e}")
+        return None
+
+
+def archive_current_logs(period_id: int) -> Dict[str, int]:
+    """
+    Архивировать текущие логи (привязать к тестовому периоду)
+
+    :param period_id: ID тестового периода
+    :return: Словарь с количеством заархивированных записей
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, существует ли период
+            cursor.execute("SELECT id FROM test_periods WHERE id = ?", (period_id,))
+            if not cursor.fetchone():
+                print(f"Ошибка: тестовый период с ID {period_id} не найден")
+                return {"queries": 0, "answers": 0, "ratings": 0}
+
+            # Архивируем query_logs (только те, что без period_id)
+            cursor.execute(
+                "UPDATE query_logs SET period_id = ? WHERE period_id IS NULL",
+                (period_id,)
+            )
+            queries_count = cursor.rowcount
+
+            # Архивируем answer_logs (только те, что без period_id)
+            cursor.execute(
+                "UPDATE answer_logs SET period_id = ? WHERE period_id IS NULL",
+                (period_id,)
+            )
+            answers_count = cursor.rowcount
+
+            # Архивируем rating_logs (только те, что без period_id)
+            cursor.execute(
+                "UPDATE rating_logs SET period_id = ? WHERE period_id IS NULL",
+                (period_id,)
+            )
+            ratings_count = cursor.rowcount
+
+            print(f"✅ Заархивировано: {queries_count} запросов, {answers_count} ответов, {ratings_count} оценок")
+
+            return {
+                "queries": queries_count,
+                "answers": answers_count,
+                "ratings": ratings_count
+            }
+
+    except Exception as e:
+        print(f"Ошибка при архивации логов: {e}")
+        return {"queries": 0, "answers": 0, "ratings": 0}
+
+
+def clear_unarchived_logs() -> Dict[str, int]:
+    """
+    Удалить неархивированные логи (логи без period_id)
+
+    :return: Словарь с количеством удалённых записей
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Удаляем rating_logs без period_id
+            cursor.execute("DELETE FROM rating_logs WHERE period_id IS NULL")
+            ratings_count = cursor.rowcount
+
+            # Удаляем answer_logs без period_id
+            cursor.execute("DELETE FROM answer_logs WHERE period_id IS NULL")
+            answers_count = cursor.rowcount
+
+            # Удаляем query_logs без period_id
+            cursor.execute("DELETE FROM query_logs WHERE period_id IS NULL")
+            queries_count = cursor.rowcount
+
+            print(f"✅ Удалено: {queries_count} запросов, {answers_count} ответов, {ratings_count} оценок")
+
+            return {
+                "queries": queries_count,
+                "answers": answers_count,
+                "ratings": ratings_count
+            }
+
+    except Exception as e:
+        print(f"Ошибка при очистке логов: {e}")
+        return {"queries": 0, "answers": 0, "ratings": 0}
+
+
+def get_period_statistics(period_id: int) -> Dict:
+    """
+    Получить подробную статистику по тестовому периоду
+
+    :param period_id: ID тестового периода
+    :return: Словарь со статистикой
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            stats = {}
+
+            # Информация о периоде
+            period = get_test_period(period_id)
+            if not period:
+                return {}
+            stats["period"] = period
+
+            # Всего запросов в периоде
+            cursor.execute(
+                "SELECT COUNT(*) as total FROM query_logs WHERE period_id = ?",
+                (period_id,)
+            )
+            stats["total_queries"] = cursor.fetchone()["total"]
+
+            # Всего ответов
+            cursor.execute(
+                "SELECT COUNT(*) as total FROM answer_logs WHERE period_id = ?",
+                (period_id,)
+            )
+            stats["total_answers"] = cursor.fetchone()["total"]
+
+            # Распределение по уровням поиска
+            cursor.execute("""
+                SELECT
+                    search_level,
+                    COUNT(*) as count,
+                    AVG(similarity_score) as avg_confidence
+                FROM answer_logs
+                WHERE period_id = ? AND search_level IS NOT NULL
+                GROUP BY search_level
+            """, (period_id,))
+
+            search_levels = {}
+            for row in cursor.fetchall():
+                search_levels[row['search_level']] = {
+                    'count': row['count'],
+                    'avg_confidence': round(row['avg_confidence'], 2) if row['avg_confidence'] else 0
+                }
+            stats["search_levels"] = search_levels
+
+            # Средняя схожесть
+            cursor.execute(
+                "SELECT AVG(similarity_score) as avg_score FROM answer_logs WHERE period_id = ? AND similarity_score IS NOT NULL",
+                (period_id,)
+            )
+            result = cursor.fetchone()
+            stats["avg_similarity"] = round(result["avg_score"], 2) if result["avg_score"] else 0
+
+            # Оценки
+            cursor.execute(
+                "SELECT COUNT(*) as total FROM rating_logs WHERE period_id = ? AND rating = 'helpful'",
+                (period_id,)
+            )
+            stats["helpful_count"] = cursor.fetchone()["total"]
+
+            cursor.execute(
+                "SELECT COUNT(*) as total FROM rating_logs WHERE period_id = ? AND rating = 'not_helpful'",
+                (period_id,)
+            )
+            stats["not_helpful_count"] = cursor.fetchone()["total"]
+
+            # Процент полезных ответов
+            total_ratings = stats["helpful_count"] + stats["not_helpful_count"]
+            if total_ratings > 0:
+                stats["helpful_percentage"] = round((stats["helpful_count"] / total_ratings) * 100, 2)
+            else:
+                stats["helpful_percentage"] = 0
+
+            # Запросы без ответа
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT ql.id) as total
+                FROM query_logs ql
+                LEFT JOIN answer_logs al ON ql.id = al.query_log_id
+                WHERE ql.period_id = ? AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
+            """, (period_id,))
+            stats["no_answer_count"] = cursor.fetchone()["total"]
+
+            # Топ-10 популярных запросов
+            cursor.execute("""
+                SELECT query_text, COUNT(*) as count
+                FROM query_logs
+                WHERE period_id = ?
+                GROUP BY query_text
+                ORDER BY count DESC
+                LIMIT 10
+            """, (period_id,))
+            stats["top_queries"] = [
+                {"query": row["query_text"], "count": row["count"]}
+                for row in cursor.fetchall()
+            ]
+
+            # Топ-10 FAQ с лучшими рейтингами
+            cursor.execute("""
+                SELECT
+                    f.id,
+                    f.question,
+                    f.category,
+                    COUNT(*) as helpful_count
+                FROM rating_logs rl
+                JOIN answer_logs al ON rl.answer_log_id = al.id
+                JOIN faq f ON al.faq_id = f.id
+                WHERE rl.period_id = ? AND rl.rating = 'helpful'
+                GROUP BY f.id
+                ORDER BY helpful_count DESC
+                LIMIT 10
+            """, (period_id,))
+            stats["top_helpful_faqs"] = [
+                {
+                    "faq_id": row["id"],
+                    "question": row["question"],
+                    "category": row["category"],
+                    "helpful_count": row["helpful_count"]
+                }
+                for row in cursor.fetchall()
+            ]
+
+            # FAQ с низкими оценками
+            cursor.execute("""
+                SELECT
+                    f.id,
+                    f.question,
+                    f.category,
+                    COUNT(*) as not_helpful_count
+                FROM rating_logs rl
+                JOIN answer_logs al ON rl.answer_log_id = al.id
+                JOIN faq f ON al.faq_id = f.id
+                WHERE rl.period_id = ? AND rl.rating = 'not_helpful'
+                GROUP BY f.id
+                ORDER BY not_helpful_count DESC
+                LIMIT 10
+            """, (period_id,))
+            stats["need_improvement_faqs"] = [
+                {
+                    "faq_id": row["id"],
+                    "question": row["question"],
+                    "category": row["category"],
+                    "not_helpful_count": row["not_helpful_count"]
+                }
+                for row in cursor.fetchall()
+            ]
+
+            # Распределение по платформам
+            cursor.execute("""
+                SELECT platform, COUNT(*) as count
+                FROM query_logs
+                WHERE period_id = ?
+                GROUP BY platform
+            """, (period_id,))
+            stats["platforms"] = {
+                row["platform"]: row["count"]
+                for row in cursor.fetchall()
+            }
+
+            # Динамика по дням
+            cursor.execute("""
+                SELECT
+                    DATE(timestamp) as date,
+                    COUNT(*) as queries_count
+                FROM query_logs
+                WHERE period_id = ?
+                GROUP BY DATE(timestamp)
+                ORDER BY date
+            """, (period_id,))
+            stats["daily_dynamics"] = [
+                {"date": row["date"], "count": row["queries_count"]}
+                for row in cursor.fetchall()
+            ]
+
+            # Уникальные пользователи
+            cursor.execute(
+                "SELECT COUNT(DISTINCT user_id) as total FROM query_logs WHERE period_id = ?",
+                (period_id,)
+            )
+            stats["unique_users"] = cursor.fetchone()["total"]
+
+            # Неудачные запросы (для Excel отчета)
+            stats["failed_queries"] = get_failed_queries_for_period(period_id, limit=200)
+
+            return stats
+
+    except Exception as e:
+        print(f"Ошибка при получении статистики периода: {e}")
+        return {}
+
+
+def get_failed_queries_for_period(period_id: int, limit: int = 100) -> List[Dict]:
+    """
+    Получить неудачные запросы для тестового периода (для работы над ошибками)
+
+    :param period_id: ID тестового периода
+    :param limit: Максимальное количество записей
+    :return: Список неудачных запросов
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(f"""
+                SELECT
+                    ql.query_text,
+                    ql.username,
+                    ql.platform,
+                    ql.timestamp,
+                    al.similarity_score,
+                    al.search_level,
+                    al.faq_id,
+                    f.question as faq_question,
+                    rl.rating
+                FROM query_logs ql
+                LEFT JOIN answer_logs al ON ql.id = al.query_log_id
+                LEFT JOIN faq f ON al.faq_id = f.id
+                LEFT JOIN rating_logs rl ON al.id = rl.answer_log_id
+                WHERE ql.period_id = ?
+                  AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD} OR rl.rating = 'not_helpful')
+                ORDER BY ql.timestamp DESC
+                LIMIT ?
+            """, (period_id, limit))
+
+            failed_queries = []
+            for row in cursor.fetchall():
+                failed_queries.append({
+                    "query_text": row["query_text"],
+                    "username": row["username"],
+                    "platform": row["platform"],
+                    "timestamp": convert_utc_to_utc7(row["timestamp"]),
+                    "similarity_score": row["similarity_score"],
+                    "search_level": row["search_level"],
+                    "faq_id": row["faq_id"],
+                    "faq_question": row["faq_question"],
+                    "rating": row["rating"]
+                })
+
+            return failed_queries
+
+    except Exception as e:
+        print(f"Ошибка при получении неудачных запросов: {e}")
         return []
