@@ -274,7 +274,17 @@
 
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ключевые слова (через запятую)</label>
-                <input type="text" id="faqKeywords" class="w-full form-input rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="слово1, слово2, слово3">
+                <div class="flex gap-2">
+                    <input type="text" id="faqKeywords" class="flex-1 form-input rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="слово1, слово2, слово3">
+                    <button type="button" onclick="optimizeKeywords()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 whitespace-nowrap" title="Оптимизировать ключевые слова (убрать дубликаты форм)">
+                        <span class="material-symbols-outlined text-xl">auto_fix_high</span>
+                        <span class="hidden sm:inline">Оптимизировать</span>
+                    </button>
+                </div>
+                <p class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <span class="material-symbols-outlined text-sm">info</span>
+                    <span>Оптимизация приводит слова к начальной форме и удаляет дубликаты (претензию, претензии → претензия)</span>
+                </p>
             </div>
 
             <div class="flex gap-3 justify-end">
@@ -1086,6 +1096,55 @@
         }
     }
 
+    async function optimizeKeywords() {
+        const keywordsInput = document.getElementById('faqKeywords');
+        const keywords = keywordsInput.value.trim();
+
+        if (!keywords) {
+            showNotification('Введите ключевые слова для оптимизации', 'error');
+            return;
+        }
+
+        try {
+            // Показываем индикатор загрузки
+            const originalValue = keywordsInput.value;
+            keywordsInput.disabled = true;
+            keywordsInput.value = 'Оптимизация...';
+
+            showNotification('Выполняется оптимизация ключевых слов...', 'info');
+
+            const response = await fetchWithAuth(`${BASE_URL}/api/optimize-keywords`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ keywords })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                keywordsInput.value = data.optimized;
+                keywordsInput.disabled = false;
+
+                // Показываем информацию об оптимизации
+                if (data.original_count !== data.optimized_count) {
+                    const removed = data.original_count - data.optimized_count;
+                    showNotification(`Оптимизация завершена! Было: ${data.original_count}, осталось: ${data.optimized_count} (удалено ${removed} дубликатов)`, 'success');
+                } else {
+                    showNotification('Ключевые слова уже оптимизированы', 'success');
+                }
+            } else {
+                keywordsInput.value = originalValue;
+                keywordsInput.disabled = false;
+                showNotification('Ошибка оптимизации: ' + (data.message || 'Неизвестная ошибка'), 'error');
+            }
+        } catch (error) {
+            keywordsInput.disabled = false;
+            keywordsInput.value = keywords;
+            console.error('Ошибка при оптимизации ключевых слов:', error);
+            showNotification('Ошибка при оптимизации ключевых слов', 'error');
+        }
+    }
+
     document.getElementById('faqForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -1161,15 +1220,31 @@
 
     function showNotification(message, type) {
         const notification = document.createElement('div');
-        notification.className = `fixed top-5 right-5 px-6 py-3 rounded-lg shadow-lg z-[100] text-white font-medium ${
+        notification.className = `fixed top-5 right-5 px-6 py-3 rounded-lg shadow-lg z-[100] text-white font-medium transition-all duration-300 transform translate-x-[400px] ${
             type === 'success' ? 'bg-green-500' :
             type === 'error' ? 'bg-red-500' :
             'bg-blue-500'
         }`;
-        notification.textContent = message;
+
+        // Добавляем иконку в зависимости от типа
+        const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+        notification.innerHTML = `<span class="text-xl mr-2">${icon}</span><span>${message}</span>`;
+        notification.style.display = 'flex';
+        notification.style.alignItems = 'center';
+
         document.body.appendChild(notification);
 
-        setTimeout(() => notification.remove(), 3000);
+        // Анимация появления
+        setTimeout(() => {
+            notification.style.transform = 'translateX(0)';
+        }, 10);
+
+        // Анимация исчезновения и удаление
+        setTimeout(() => {
+            notification.style.transform = 'translateX(400px)';
+            notification.style.opacity = '0';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
 
     // ========== ЭКСПОРТ ДЛЯ АКТУАЛИЗАЦИИ ==========

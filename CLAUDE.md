@@ -2,9 +2,9 @@
 
 > **Purpose**: Comprehensive context about the AI-FAQ-Bot codebase for AI assistants.
 
-**Last Updated**: 2025-01-21
+**Last Updated**: 2025-01-04
 **Language**: Python 3.11
-**Stack**: python-telegram-bot, ChromaDB, sentence-transformers, Flask, SQLite
+**Stack**: python-telegram-bot, ChromaDB, sentence-transformers, pymorphy3, Flask, SQLite
 
 ---
 
@@ -15,9 +15,10 @@ Multi-platform FAQ bot with **cascading search system** (4 levels) and semantic 
 ### Key Features
 
 - **Cascading Search (4 levels)**:
-  - 🎯 Exact Match (100%) → 🔑 Keyword Search (70-95%) → 🧠 Semantic Search (45-70%) → ❌ Fallback
+  - 🎯 Exact Match (100%) → 🔑 Keyword Search with Lemmatization (70-95%) → 🧠 Semantic Search (45-70%) → ❌ Fallback
+  - Automatic word form recognition (претензию, претензии → претензия)
 - **Multi-Platform**: Telegram + Bitrix24
-- **Web Admin Panel**: FAQ management, analytics, settings
+- **Web Admin Panel**: FAQ management, analytics, settings, keyword optimization
 - **Bitrix24 Integration**: OAuth 2.0, iframe embedding, role-based access
 - **Hot Reload**: Update FAQ without restarting bots
 - **Analytics**: Query logs, similarity scores, search levels, user feedback
@@ -104,10 +105,16 @@ FAQBot/
 
 ```
 Level 1: EXACT MATCH    → 100% (normalized text comparison)
-Level 2: KEYWORD SEARCH → 70-95% (short queries ≤5 words)
+Level 2: KEYWORD SEARCH → 70-95% (short queries ≤5 words, with lemmatization)
 Level 3: SEMANTIC SEARCH → 45-70% (ChromaDB vectors)
 Level 4: FALLBACK       → 0% (polite refusal)
 ```
+
+**Lemmatization (pymorphy3):**
+- Automatic word form normalization (претензию, претензии → претензия)
+- Applied to both user queries and FAQ keywords
+- Functions: `lemmatize_word()`, `lemmatize_text()`, `extract_keywords()`
+- Reduces need for manual word form variants
 
 **Main function:**
 ```python
@@ -172,7 +179,13 @@ get_logs(filters), get_statistics(filters), get_search_level_statistics()
 - `GET /admin/logs` - Analytics
 - `GET/POST /admin/settings` - Bot settings
 - `POST /admin/retrain` - Rebuild ChromaDB + notify bots
+- `POST /admin/api/optimize-keywords` - Lemmatize and deduplicate keywords
 - `GET /admin/api/search-level-stats` - Cascade search statistics
+
+**UI Features:**
+- "Optimize" button in FAQ form - automatically removes duplicate word forms
+- Toast notifications for user feedback
+- Keyword optimization statistics display
 
 **Static Assets:**
 - Uses local Tailwind CSS (no CDN)
@@ -210,6 +223,17 @@ add_faq(category, question, answer, keywords)
 retrain_chromadb()
 notify_bot_reload()
 ```
+
+### Optimize keywords programmatically
+```python
+from src.core.search import lemmatize_word
+
+keywords = ["претензию", "претензии", "товар", "товары"]
+optimized = list(dict.fromkeys([lemmatize_word(kw) for kw in keywords]))
+# Result: ["претензия", "товар"]
+```
+
+Or use the web UI "Optimize" button in FAQ form.
 
 ### Add new setting
 1. Add to `DEFAULT_BOT_SETTINGS` in `database.py`
@@ -311,13 +335,15 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ✅ Use `get_db_connection()` context manager
 - ✅ Log with `search_level` parameter in `add_answer_log()`
 - ✅ Test both Telegram and Bitrix24 after changes
+- ✅ Use lemmatized keywords (base forms) instead of listing all variants
 
 **DON'T:**
 - ❌ Store UTC+7 directly (store UTC)
 - ❌ Modify schema without migration script
 - ❌ Update FAQs without retraining ChromaDB
 - ❌ Use `time.sleep()` in async functions
+- ❌ Add all word forms manually (use lemmatization)
 
 ---
 
-**Document Version**: 2.0 (Cascading Search)
+**Document Version**: 2.1 (Cascading Search + Lemmatization)

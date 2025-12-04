@@ -1061,6 +1061,74 @@ def reset_settings():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@admin_bp.route('/api/optimize-keywords', methods=['POST'])
+def optimize_keywords():
+    """
+    Оптимизация ключевых слов через лемматизацию
+
+    Принимает строку ключевых слов через запятую,
+    лемматизирует каждое слово и возвращает уникальные леммы.
+
+    Body: {"keywords": "претензию, претензии, товар, товары"}
+    Returns: {"success": true, "optimized": "претензия, товар"}
+    """
+    try:
+        from src.core.search import lemmatize_word
+
+        data = request.json
+        keywords_str = data.get('keywords', '')
+
+        if not keywords_str or not keywords_str.strip():
+            return jsonify({
+                "success": True,
+                "optimized": "",
+                "original_count": 0,
+                "optimized_count": 0
+            })
+
+        # Разбиваем на отдельные слова
+        keywords = [kw.strip() for kw in keywords_str.split(',') if kw.strip()]
+
+        if not keywords:
+            return jsonify({
+                "success": True,
+                "optimized": "",
+                "original_count": 0,
+                "optimized_count": 0
+            })
+
+        # Лемматизируем каждое слово
+        lemmatized = []
+        seen = set()
+
+        for keyword in keywords:
+            lemma = lemmatize_word(keyword)
+
+            # Добавляем только уникальные леммы
+            if lemma not in seen and lemma:
+                seen.add(lemma)
+                lemmatized.append(lemma)
+
+        # Собираем обратно в строку
+        optimized_str = ', '.join(lemmatized)
+
+        logger.info(f"Оптимизация ключевых слов: {len(keywords)} → {len(lemmatized)} слов")
+
+        return jsonify({
+            "success": True,
+            "optimized": optimized_str,
+            "original_count": len(keywords),
+            "optimized_count": len(lemmatized)
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при оптимизации ключевых слов: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "message": f"Ошибка оптимизации: {str(e)}"
+        }), 500
+
+
 # ========== ПРАВА ДОСТУПА BITRIX24 ==========
 
 @admin_bp.route('/permissions')
