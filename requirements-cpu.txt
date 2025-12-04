@@ -14,6 +14,8 @@ python-telegram-bot[job-queue]>=21.0
 sentence-transformers>=2.2.2
 transformers>=4.35.2
 # torch устанавливается отдельно (см. выше)
+pymorphy2>=0.9.1
+pymorphy2-dicts-ru>=2.4.0
 
 # Векторная база данных
 chromadb>=1.3.3

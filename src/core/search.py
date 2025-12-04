@@ -29,6 +29,88 @@ RUSSIAN_STOP_WORDS = {
 }
 
 
+# ========== ЛЕММАТИЗАЦИЯ ==========
+
+# Глобальный морфологический анализатор (lazy loading)
+_morph_analyzer = None
+
+
+def get_morph_analyzer():
+    """
+    Получить морфологический анализатор с ленивой инициализацией
+
+    Returns:
+        pymorphy3.MorphAnalyzer
+    """
+    global _morph_analyzer
+    if _morph_analyzer is None:
+        try:
+            import pymorphy3
+            _morph_analyzer = pymorphy3.MorphAnalyzer()
+            logger.debug("Морфологический анализатор pymorphy3 инициализирован")
+        except ImportError:
+            logger.warning("pymorphy3 не установлен. Лемматизация отключена.")
+            _morph_analyzer = False  # Отметить, что попытка была
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации pymorphy3: {e}")
+            _morph_analyzer = False
+
+    return _morph_analyzer if _morph_analyzer else None
+
+
+def lemmatize_word(word: str) -> str:
+    """
+    Лемматизация одного слова (приведение к начальной форме)
+
+    Примеры:
+        - претензию → претензия
+        - претензии → претензия
+        - составить → составить
+        - нарушения → нарушение
+
+    Args:
+        word: Слово для лемматизации
+
+    Returns:
+        Лемма (начальная форма) или исходное слово, если лемматизация недоступна
+    """
+    morph = get_morph_analyzer()
+
+    if not morph or not word:
+        return word.lower()
+
+    try:
+        # Парсим слово и берем первую (наиболее вероятную) лемму
+        parsed = morph.parse(word)
+        if parsed:
+            lemma = parsed[0].normal_form
+            return lemma.lower()
+    except Exception as e:
+        logger.debug(f"Ошибка лемматизации слова '{word}': {e}")
+
+    return word.lower()
+
+
+def lemmatize_text(text: str) -> List[str]:
+    """
+    Лемматизация текста (список лемм всех слов)
+
+    Args:
+        text: Текст для лемматизации
+
+    Returns:
+        Список лемматизированных слов
+    """
+    # Нормализуем текст (удаление пунктуации, приведение к lowercase)
+    normalized = normalize_text(text)
+    words = normalized.split()
+
+    # Лемматизируем каждое слово
+    lemmas = [lemmatize_word(word) for word in words]
+
+    return lemmas
+
+
 # ========== КЛАСС РЕЗУЛЬТАТА ПОИСКА ==========
 
 @dataclass
@@ -89,25 +171,41 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 
-def extract_keywords(text: str, min_length: int = 3) -> List[str]:
+def extract_keywords(text: str, min_length: int = 3, use_lemmatization: bool = True) -> List[str]:
     """
-    Извлечение ключевых слов из текста
+    Извлечение ключевых слов из текста с лемматизацией
 
-    Удаляет стоп-слова и оставляет только значимые слова
+    Процесс:
+    1. Нормализация текста (удаление пунктуации, lowercase)
+    2. Лемматизация слов (приведение к начальной форме)
+    3. Удаление стоп-слов и коротких слов
+    4. Удаление дубликатов
 
     Args:
         text: Исходный текст
         min_length: Минимальная длина слова
+        use_lemmatization: Использовать лемматизацию (True по умолчанию)
 
     Returns:
-        Список уникальных ключевых слов
+        Список уникальных лемматизированных ключевых слов
+
+    Examples:
+        >>> extract_keywords("Как составить претензию?")
+        ['составить', 'претензия']  # "составить" уже в начальной форме
+        >>> extract_keywords("У меня проблемы с оборудованием")
+        ['проблема', 'оборудование']  # "проблемы" → "проблема"
     """
-    normalized = normalize_text(text)
-    words = normalized.split()
+    if use_lemmatization:
+        # Лемматизируем текст
+        lemmas = lemmatize_text(text)
+    else:
+        # Обычная нормализация (без лемматизации)
+        normalized = normalize_text(text)
+        lemmas = normalized.split()
 
     # Фильтруем стоп-слова и короткие слова
     keywords = [
-        word for word in words
+        word for word in lemmas
         if word not in RUSSIAN_STOP_WORDS and len(word) >= min_length
     ]
 
