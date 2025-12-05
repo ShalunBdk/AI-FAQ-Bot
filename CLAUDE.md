@@ -2,9 +2,10 @@
 
 > **Purpose**: Comprehensive context about the AI-FAQ-Bot codebase for AI assistants.
 
-**Last Updated**: 2025-01-05
+**Last Updated**: 2025-12-05
 **Language**: Python 3.11
 **Stack**: python-telegram-bot, ChromaDB, sentence-transformers, pymorphy3, Flask, SQLite
+**Semantic Model**: deepvk/USER2-base (Russian-optimized, 8K context, with task-specific prefixes)
 
 ---
 
@@ -110,9 +111,19 @@ FAQBot/
 ```
 Level 1: EXACT MATCH    → 100% (normalized text comparison)
 Level 2: KEYWORD SEARCH → 70-95% (short queries ≤5 words, with lemmatization)
-Level 3: SEMANTIC SEARCH → 45-70% (ChromaDB vectors)
+Level 3: SEMANTIC SEARCH → 45-70% (ChromaDB vectors with deepvk/USER2-base)
 Level 4: FALLBACK       → 0% (polite refusal)
 ```
+
+**Semantic Model (deepvk/USER2-base):**
+- **Russian-optimized** transformer (149M parameters) from deepvk
+- **Long context support**: 8,192 tokens (vs 512 in old model)
+- **Task-specific prefixes**: Uses `search_query:` and `search_document:` for optimal retrieval
+- **Improved accuracy**: Better understanding of rephrased questions and typos
+- **Usage**:
+  - Queries: `collection.query(query_texts=[f"search_query: {text}"])`
+  - Documents: `documents.append(f"search_document: {text}")`
+- **Note**: All documents in ChromaDB must be re-indexed after model change
 
 **Lemmatization (pymorphy3):**
 - Automatic word form normalization (претензию, претензии → претензия)
@@ -139,27 +150,32 @@ result = find_answer(query_text, collection, settings)
 
 **Disambiguation (Разрешение неоднозначностей):**
 
-When multiple FAQs have similar confidence scores (difference < 15%), the system enters disambiguation mode:
+When multiple FAQs have similar confidence scores (difference < 7%), the system enters disambiguation mode:
 
 1. **Detection Logic** (`src/core/search.py`):
-   - Triggered when top-2 results have confidence difference < 15%
+   - Triggered when top-2 results have confidence difference < 7%
    - Returns `SearchResult` with `ambiguous=True` and `alternatives` list
    - Works for both keyword search and semantic search levels
+   - **Limits**: Max 3 alternatives, only variants within 12% from top result
 
 2. **User Interaction** (both platforms):
    - Bot sends message: "Найдено несколько подходящих вопросов. Выберите нужный:"
-   - Shows buttons with FAQ questions (up to 5 alternatives)
+   - Shows buttons with FAQ questions (without confidence %) for clean UX
    - User clicks button to select the correct FAQ
 
-3. **Logging**:
-   - **Step 1**: `search_level='disambiguation_shown'`, `faq_id=NULL` - options presented
-   - **Step 2**: `search_level='disambiguation'`, `faq_id=selected`, `confidence=100.0` - user choice
+3. **Logging** (with real confidence):
+   - **Step 1**: `search_level='disambiguation_shown'`, `faq_id=NULL` - options presented with confidence %
+     - Example: `- [83.6%] Проблема с картриджем\n- [74.3%] Проблемы с принтером`
+   - **Step 2**: `search_level='disambiguation'`, `faq_id=selected`, `confidence=real_value` - user choice
+     - **Important**: Uses REAL confidence from search (not 100%), e.g., 83.6%
    - Both steps linked via `query_log_id`
 
 4. **UI Behavior**:
-   - **Bitrix24**: Original message with buttons is deleted after selection
+   - **Bitrix24**: Message is EDITED to show selected FAQ (no "Message deleted" stub)
    - **Telegram**: Message is edited to show selected FAQ (removes buttons)
-   - **Admin logs**: Only final selection shown (disambiguation_shown hidden if user chose)
+   - **Admin logs**:
+     - `disambiguation_shown` hidden if user selected
+     - Click on "🔀 Показаны варианты для выбора" expands details with confidence %
 
 5. **Analytics**:
    - Disambiguation is **excluded** from "no answer" / "failed queries" statistics
@@ -375,8 +391,8 @@ See `docs/TEST_PERIODS_GUIDE.md` for detailed workflow.
 # Required
 TELEGRAM_TOKEN=...
 
-# Optional
-MODEL_NAME=paraphrase-multilingual-MiniLM-L12-v2
+# Semantic Model (IMPORTANT: Change requires ChromaDB re-indexing)
+MODEL_NAME=deepvk/USER2-base
 SIMILARITY_THRESHOLD=45
 
 # Bitrix24
@@ -448,6 +464,8 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ✅ Test both Telegram and Bitrix24 after changes
 - ✅ Use lemmatized keywords (base forms) instead of listing all variants
 - ✅ Exclude `disambiguation_shown` and `disambiguation` from "no answer" / "failed queries" filters
+- ✅ Use `search_query:` prefix for queries and `search_document:` for documents (deepvk/USER2-base)
+- ✅ Save REAL confidence in disambiguation logs (not 100%)
 
 **DON'T:**
 - ❌ Store UTC+7 directly (store UTC)
@@ -456,7 +474,8 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ❌ Use `time.sleep()` in async functions
 - ❌ Add all word forms manually (use lemmatization)
 - ❌ Count disambiguation as failed queries in statistics
+- ❌ Forget prefixes when using deepvk/USER2-base model
 
 ---
 
-**Document Version**: 2.2 (Cascading Search + Lemmatization + Disambiguation)
+**Document Version**: 2.3 (deepvk/USER2-base + Improved Disambiguation + Enhanced Logging)

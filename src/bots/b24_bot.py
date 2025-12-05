@@ -838,32 +838,55 @@ def handle_command_event(event: Bitrix24Event, api: Bitrix24API):
                             search_level='disambiguation'
                         )
 
-                    # Создаем SearchResult для отправки ответа
-                    from src.core.search import SearchResult
-                    result = SearchResult(
-                        found=True,
-                        faq_id=faq_id,
-                        question=faq['question'],
-                        answer=faq['answer'],
-                        confidence=real_confidence,  # Используем реальный confidence
-                        search_level='disambiguation',
-                        all_results=None,
-                        message=None
-                    )
-
-                    # Отправляем ответ
-                    send_answer(event, api, result, answer_log_id)
-
                     # Получаем ID сообщения с вариантами из словаря
                     disambiguation_msg_id = None
                     if hasattr(send_disambiguation, 'message_ids') and original_query_log_id:
                         disambiguation_msg_id = send_disambiguation.message_ids.pop(original_query_log_id, None)
 
-                    # Удаляем сообщение с вариантами выбора
-                    msg_id_to_delete = disambiguation_msg_id or message_id
-                    if msg_id_to_delete:
-                        logger.debug(f"🗑️ Удаление сообщения с вариантами выбора {msg_id_to_delete}")
-                        api.delete_message(msg_id_to_delete)
+                    # Редактируем сообщение с вариантами вместо удаления
+                    msg_id_to_update = disambiguation_msg_id or message_id
+                    if msg_id_to_update:
+                        # Конвертируем ответ в BB коды
+                        answer_bbcode = convert_html_to_bbcode(faq['answer'])
+                        question_bbcode = convert_html_to_bbcode(faq['question'])
+
+                        # Формируем новое сообщение
+                        updated_message = f"✅ [b]{question_bbcode}[/b]\n\n{answer_bbcode}"
+
+                        # Добавляем процент схожести если включено
+                        show_similarity = bot_settings_cache.get("show_similarity", "true") == "true"
+                        if show_similarity:
+                            icon = '🔀'  # Иконка для disambiguation
+                            updated_message += f"\n\n{icon} Схожесть: {real_confidence:.1f}%"
+
+                        # Кнопки обратной связи
+                        yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
+                        no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
+
+                        feedback_buttons = [[
+                            {'text': yes_text, 'action': 'helpful_yes', 'params': str(answer_log_id)},
+                            {'text': no_text, 'action': 'helpful_no', 'params': str(answer_log_id)}
+                        ]]
+
+                        keyboard = api.create_keyboard(feedback_buttons)
+
+                        # Обновляем сообщение
+                        api.update_message(msg_id_to_update, message=updated_message, keyboard=keyboard)
+                        logger.info(f"✏️ Обновлено сообщение {msg_id_to_update} с выбранным вариантом")
+                    else:
+                        # Если не нашли ID старого сообщения, отправляем новое
+                        from src.core.search import SearchResult
+                        result = SearchResult(
+                            found=True,
+                            faq_id=faq_id,
+                            question=faq['question'],
+                            answer=faq['answer'],
+                            confidence=real_confidence,
+                            search_level='disambiguation',
+                            all_results=None,
+                            message=None
+                        )
+                        send_answer(event, api, result, answer_log_id)
                 else:
                     logger.error(f"❌ FAQ с ID {faq_id} не найден")
             except (ValueError, IndexError) as e:

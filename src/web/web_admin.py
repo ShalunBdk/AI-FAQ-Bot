@@ -143,7 +143,7 @@ ALL_BOT_RELOAD_URLS = [TELEGRAM_BOT_RELOAD_URL, BITRIX24_BOT_RELOAD_URL]
 ALL_BOT_RELOAD_SETTINGS_URLS = [TELEGRAM_BOT_RELOAD_SETTINGS_URL, BITRIX24_BOT_RELOAD_SETTINGS_URL]
 
 # Инициализация ChromaDB (поддержка Docker путей)
-CHROMA_PATH = os.getenv('CHROMA_PATH', './chroma_db')
+CHROMA_PATH = os.getenv('CHROMA_PATH', './data/chroma_db')
 chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL_NAME)
 
