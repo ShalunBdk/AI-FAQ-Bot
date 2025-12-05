@@ -125,7 +125,7 @@ def set_security_headers(response):
     return response
 
 # Конфигурация
-MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+MODEL_NAME = os.getenv("MODEL_NAME", "paraphrase-multilingual-MiniLM-L12-v2")
 
 # Эндпоинты для уведомления ботов (поддержка Docker и localhost)
 # В Docker используем имена контейнеров из переменных окружения

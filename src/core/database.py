@@ -577,6 +577,7 @@ def get_logs(
                     al.faq_id,
                     al.similarity_score,
                     al.answer_shown,
+                    al.search_level,
                     al.timestamp as answer_timestamp,
                     rl.rating,
                     rl.timestamp as rating_timestamp,
@@ -621,7 +622,8 @@ def get_logs(
 
             if no_answer:
                 # Показываем только запросы где не нашелся ответ (faq_id IS NULL или совпадение < порога)
-                query += f" AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})"
+                # Исключаем disambiguation - это не ошибка, а уточнение
+                query += f" AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD}) AND al.search_level NOT IN ('disambiguation_shown', 'disambiguation')"
 
             if platform:
                 query += " AND ql.platform = ?"
@@ -656,6 +658,7 @@ def get_logs(
                     "faq_id": row["faq_id"],
                     "similarity_score": row["similarity_score"],
                     "answer_shown": row["answer_shown"],
+                    "search_level": row["search_level"],
                     "answer_timestamp": convert_utc_to_utc7(row["answer_timestamp"]),
                     "rating": row["rating"],
                     "rating_timestamp": convert_utc_to_utc7(row["rating_timestamp"]),
@@ -710,11 +713,14 @@ def get_statistics() -> Dict:
 
             # Запросы без ответа (faq_id IS NULL или совпадение < порога) - только неархивированные
             # Считаем уникальные запросы, а не записи в answer_logs
+            # Исключаем disambiguation - это не ошибка, а уточнение
             cursor.execute(f"""
                 SELECT COUNT(DISTINCT ql.id) as total
                 FROM query_logs ql
                 LEFT JOIN answer_logs al ON ql.id = al.query_log_id
-                WHERE ql.period_id IS NULL AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
+                WHERE ql.period_id IS NULL
+                  AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
             """)
             stats["no_answer_count"] = cursor.fetchone()["total"]
 
@@ -811,9 +817,11 @@ def get_search_level_statistics() -> Dict:
                         WHEN 'exact' THEN 1
                         WHEN 'keyword' THEN 2
                         WHEN 'semantic' THEN 3
-                        WHEN 'direct' THEN 4
-                        WHEN 'none' THEN 5
-                        ELSE 6
+                        WHEN 'disambiguation_shown' THEN 4
+                        WHEN 'disambiguation' THEN 5
+                        WHEN 'direct' THEN 6
+                        WHEN 'none' THEN 7
+                        ELSE 8
                     END
             """)
 
@@ -1366,7 +1374,9 @@ def get_period_statistics(period_id: int) -> Dict:
                 SELECT COUNT(DISTINCT ql.id) as total
                 FROM query_logs ql
                 LEFT JOIN answer_logs al ON ql.id = al.query_log_id
-                WHERE ql.period_id = ? AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
+                WHERE ql.period_id = ?
+                  AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
             """, (period_id,))
             stats["no_answer_count"] = cursor.fetchone()["total"]
 
@@ -1507,6 +1517,7 @@ def get_failed_queries_for_period(period_id: int, limit: int = 100) -> List[Dict
                 LEFT JOIN rating_logs rl ON al.id = rl.answer_log_id
                 WHERE ql.period_id = ?
                   AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD} OR rl.rating = 'not_helpful')
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
                 ORDER BY ql.timestamp DESC
                 LIMIT ?
             """, (period_id, limit))

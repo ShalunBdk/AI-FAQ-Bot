@@ -2,7 +2,7 @@
 
 > **Purpose**: Comprehensive context about the AI-FAQ-Bot codebase for AI assistants.
 
-**Last Updated**: 2025-01-04
+**Last Updated**: 2025-01-05
 **Language**: Python 3.11
 **Stack**: python-telegram-bot, ChromaDB, sentence-transformers, pymorphy3, Flask, SQLite
 
@@ -17,6 +17,10 @@ Multi-platform FAQ bot with **cascading search system** (4 levels) and semantic 
 - **Cascading Search (4 levels)**:
   - 🎯 Exact Match (100%) → 🔑 Keyword Search with Lemmatization (70-95%) → 🧠 Semantic Search (45-70%) → ❌ Fallback
   - Automatic word form recognition (претензию, претензии → претензия)
+- **Disambiguation (Уточнение)**:
+  - 🔀 Automatic detection of ambiguous queries (when multiple FAQs have similar confidence)
+  - ✅ User selects the correct FAQ from presented options
+  - Full logging: both the display of options and user selection
 - **Multi-Platform**: Telegram + Bitrix24
 - **Web Admin Panel**: FAQ management, analytics, settings, keyword optimization
 - **Bitrix24 Integration**: OAuth 2.0, iframe embedding, role-based access
@@ -131,7 +135,43 @@ result = find_answer(query_text, collection, settings)
 - `keyword_search_max_words`: "5"
 - `fallback_message`: "..."
 
-**Icons**: 🎯 exact, 🔑 keyword, 🧠 semantic, 📄 direct
+**Icons**: 🎯 exact, 🔑 keyword, 🧠 semantic, 🔀 disambiguation_shown, ✅ disambiguation, 📄 direct, ❌ none
+
+**Disambiguation (Разрешение неоднозначностей):**
+
+When multiple FAQs have similar confidence scores (difference < 15%), the system enters disambiguation mode:
+
+1. **Detection Logic** (`src/core/search.py`):
+   - Triggered when top-2 results have confidence difference < 15%
+   - Returns `SearchResult` with `ambiguous=True` and `alternatives` list
+   - Works for both keyword search and semantic search levels
+
+2. **User Interaction** (both platforms):
+   - Bot sends message: "Найдено несколько подходящих вопросов. Выберите нужный:"
+   - Shows buttons with FAQ questions (up to 5 alternatives)
+   - User clicks button to select the correct FAQ
+
+3. **Logging**:
+   - **Step 1**: `search_level='disambiguation_shown'`, `faq_id=NULL` - options presented
+   - **Step 2**: `search_level='disambiguation'`, `faq_id=selected`, `confidence=100.0` - user choice
+   - Both steps linked via `query_log_id`
+
+4. **UI Behavior**:
+   - **Bitrix24**: Original message with buttons is deleted after selection
+   - **Telegram**: Message is edited to show selected FAQ (removes buttons)
+   - **Admin logs**: Only final selection shown (disambiguation_shown hidden if user chose)
+
+5. **Analytics**:
+   - Disambiguation is **excluded** from "no answer" / "failed queries" statistics
+   - Tracked separately in search level distribution
+   - Functions updated: `get_logs()`, `get_statistics()`, `get_period_statistics()`, `get_failed_queries_for_period()`
+
+**Implementation Files**:
+- `src/core/search.py`: Detection logic (lines 327-566)
+- `src/bots/bot.py`: Telegram UI (lines 467-500, 671-731)
+- `src/bots/b24_bot.py`: Bitrix24 UI (lines 484-516, 815-868)
+- `src/web/templates/admin/logs.html`: Frontend filtering (lines 441-464)
+- `src/core/database.py`: SQL exclusions (lines 626, 717-724, 1373-1381, 1518-1520)
 
 ### 2. Database (`src/core/database.py`)
 
@@ -253,6 +293,30 @@ optimized = list(dict.fromkeys([lemmatize_word(kw) for kw in keywords]))
 ```
 
 Or use the web UI "Optimize" button in FAQ form.
+
+### Test disambiguation behavior
+```python
+from src.core.search import find_answer
+
+# Create two FAQs with overlapping keywords for testing
+# FAQ 1: "Проблемы с электронной почтой" - keywords: "письмо, почта, email"
+# FAQ 2: "Как отправить письмо почтой России" - keywords: "письмо, почта, отправка"
+
+# Query that triggers disambiguation
+result = find_answer("письмо почтой", collection, settings)
+
+# Check if disambiguation was triggered
+if result.ambiguous:
+    print(f"Disambiguation triggered! {len(result.alternatives)} alternatives:")
+    for alt in result.alternatives:
+        print(f"  - {alt['question']} ({alt['confidence']:.1f}%)")
+    # Bot will show buttons for user to choose
+```
+
+**Note**: Disambiguation is triggered when:
+- Top-2 results have confidence difference < 15%
+- Applies to both keyword and semantic search levels
+- User selection is logged as `search_level='disambiguation'`
 
 ### Add new setting
 1. Add to `DEFAULT_BOT_SETTINGS` in `database.py`
@@ -383,6 +447,7 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ✅ Log with `search_level` parameter in `add_answer_log()`
 - ✅ Test both Telegram and Bitrix24 after changes
 - ✅ Use lemmatized keywords (base forms) instead of listing all variants
+- ✅ Exclude `disambiguation_shown` and `disambiguation` from "no answer" / "failed queries" filters
 
 **DON'T:**
 - ❌ Store UTC+7 directly (store UTC)
@@ -390,7 +455,8 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ❌ Update FAQs without retraining ChromaDB
 - ❌ Use `time.sleep()` in async functions
 - ❌ Add all word forms manually (use lemmatization)
+- ❌ Count disambiguation as failed queries in statistics
 
 ---
 
-**Document Version**: 2.1 (Cascading Search + Lemmatization)
+**Document Version**: 2.2 (Cascading Search + Lemmatization + Disambiguation)

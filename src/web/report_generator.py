@@ -114,12 +114,14 @@ def generate_period_excel_report(stats: dict) -> BytesIO:
         'exact': ('Точное совпадение', '🎯'),
         'keyword': ('Поиск по ключевым словам', '🔑'),
         'semantic': ('Семантический поиск', '🧠'),
+        'disambiguation_shown': ('Показ вариантов для выбора', '🔀'),
+        'disambiguation': ('Выбор из вариантов', '✅'),
         'direct': ('Прямой выбор', '📄'),
         'none': ('Не найдено', '❌')
     }
 
     row += 1
-    for level_key in ['exact', 'keyword', 'semantic', 'direct', 'none']:
+    for level_key in ['exact', 'keyword', 'semantic', 'disambiguation_shown', 'disambiguation', 'direct', 'none']:
         level_data = stats['search_levels'].get(level_key, {'count': 0, 'avg_confidence': 0})
         level_name, icon = level_names.get(level_key, (level_key, ''))
 

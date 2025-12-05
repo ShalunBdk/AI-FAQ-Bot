@@ -438,10 +438,36 @@
         const tbody = document.getElementById("logs-tbody");
         tbody.innerHTML = "";
 
+        // Найти query_id, которые имеют и 'disambiguation_shown', и 'disambiguation'
+        // Для таких запросов скрываем строку с 'disambiguation_shown' (показываем только финальный выбор)
+        const queryIdsWithBoth = new Set();
+        const queryIdToSearchLevels = {};
+
         logs.forEach((log) => {
+            if (!queryIdToSearchLevels[log.query_id]) {
+                queryIdToSearchLevels[log.query_id] = [];
+            }
+            queryIdToSearchLevels[log.query_id].push(log.search_level);
+        });
+
+        Object.keys(queryIdToSearchLevels).forEach((queryId) => {
+            const levels = queryIdToSearchLevels[queryId];
+            if (levels.includes('disambiguation_shown') && levels.includes('disambiguation')) {
+                queryIdsWithBoth.add(parseInt(queryId));
+            }
+        });
+
+        logs.forEach((log) => {
+            // Пропускаем строки с 'disambiguation_shown', если пользователь уже выбрал вариант
+            if (log.search_level === 'disambiguation_shown' && queryIdsWithBoth.has(log.query_id)) {
+                return; // Не показываем эту строку в таблице
+            }
+
             const row = document.createElement("tr");
 
-            const noAnswer = !log.faq_id || (log.similarity_score && log.similarity_score < similarityThreshold);
+            // Исключаем disambiguation из "нет ответа" - это не ошибка, а уточнение
+            const isDisambiguation = ['disambiguation_shown', 'disambiguation'].includes(log.search_level);
+            const noAnswer = (!log.faq_id || (log.similarity_score && log.similarity_score < similarityThreshold)) && !isDisambiguation;
 
             row.className = "border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors";
 
@@ -497,10 +523,12 @@
                     </div>
                 </td>
                 <td class="px-6 py-4" data-column="answer">
-                    ${log.faq_question ? `
-                        <div class="max-w-xs truncate text-gray-800 dark:text-gray-200" title="${log.faq_question}">${log.faq_question}</div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">${log.category || ""}</div>
-                    ` : '<span class="text-red-600 dark:text-red-400 font-semibold text-sm">Ответ не найден</span>'}
+                    ${log.search_level === 'disambiguation_shown' ?
+                        '<span class="text-blue-600 dark:text-blue-400 font-semibold text-sm">🔀 Показаны варианты для выбора</span>' :
+                        log.faq_question ? `
+                            <div class="max-w-xs truncate text-gray-800 dark:text-gray-200" title="${log.faq_question}">${log.faq_question}</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">${log.category || ""}</div>
+                        ` : '<span class="text-red-600 dark:text-red-400 font-semibold text-sm">❌ Ответ не найден</span>'}
                 </td>
                 <td class="px-6 py-4 text-center" data-column="similarity">
                     <span class="font-bold ${scoreClass}">${score.toFixed(1)}%</span>

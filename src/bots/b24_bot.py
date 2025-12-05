@@ -296,6 +296,7 @@ def register_bot_commands(api: Bitrix24API):
             ('helpful_no', 'Не помогло'),
             ('cat', 'Выбор категории'),
             ('similar_question', 'Похожий вопрос'),
+            ('disambig', 'Уточнение вопроса'),
         ]
 
         for command, title in commands:
@@ -433,7 +434,24 @@ def handle_search_faq(event: Bitrix24Event, api: Bitrix24API, is_faq_view: bool 
     result = find_answer(query_text, collection)
 
     if result.found:
-        # Нашли ответ!
+        # Проверяем на неоднозначность (disambiguation)
+        if result.ambiguous and result.alternatives:
+            logger.info(f"⚠️ Обнаружена неоднозначность! Найдено {len(result.alternatives)} альтернатив")
+
+            # Логируем показ вариантов
+            questions_shown = "\n".join([f"- {alt['question']}" for alt in result.alternatives])
+            database.add_answer_log(
+                query_log_id=query_log_id,
+                faq_id=None,  # Конкретный FAQ еще не выбран
+                similarity_score=result.confidence,
+                answer_shown=f"Показаны варианты для выбора ({len(result.alternatives)} шт.):\n{questions_shown}",
+                search_level='disambiguation_shown'
+            )
+
+            send_disambiguation(event, api, result.alternatives, query_log_id)
+            return
+
+        # Нашли однозначный ответ!
         logger.info(f"✅ Ответ найден через {result.search_level} (confidence: {result.confidence:.1f}%)")
 
         # Логируем ответ
@@ -461,6 +479,35 @@ def handle_search_faq(event: Bitrix24Event, api: Bitrix24API, is_faq_view: bool 
         )
 
         send_no_answer(event, api, result.message)
+
+
+def send_disambiguation(event: Bitrix24Event, api: Bitrix24API, alternatives: List[Dict], query_log_id: int):
+    """Отправка уточняющего вопроса с кнопками выбора"""
+    message = "Найдено несколько подходящих вопросов. Выберите нужный:"
+
+    # Формируем кнопки для каждой альтернативы
+    buttons = []
+    for alt in alternatives:
+        buttons.append([{
+            'text': alt['question'],
+            'action': 'disambig',
+            'params': f"{alt['faq_id']}_{query_log_id}"
+        }])
+
+    keyboard = api.create_keyboard(buttons)
+    result = api.send_message(event.dialog_id, message, keyboard=keyboard)
+
+    # Сохраняем ID сообщения для последующего удаления
+    disambiguation_msg_id = None
+    if result.get('result') and isinstance(result['result'], dict):
+        disambiguation_msg_id = result['result'].get('MESSAGE_ID')
+        # Сохраняем в глобальный словарь для доступа при выборе
+        if not hasattr(send_disambiguation, 'message_ids'):
+            send_disambiguation.message_ids = {}
+        if query_log_id:
+            send_disambiguation.message_ids[query_log_id] = disambiguation_msg_id
+
+    logger.info(f"Отправлено disambiguation (msg_id={disambiguation_msg_id}) с {len(alternatives)} вариантами пользователю {event.user_id}")
 
 
 def send_answer(event: Bitrix24Event, api: Bitrix24API, result: SearchResult, answer_log_id: int):
@@ -765,6 +812,62 @@ def handle_command_event(event: Bitrix24Event, api: Bitrix24API):
             # answer_command не нужен - ответ уже отправлен через handle_search_faq
         else:
             logger.error(f"⚠️ Нет текста вопроса в параметрах команды similar_question")
+    # Выбор FAQ из disambiguation
+    elif command_lower == 'disambig':
+        if params:
+            # Парсим params: faq_id_query_log_id
+            # faq_id имеет формат "faq_XXXXXXXX", поэтому используем rsplit с конца
+            try:
+                parts = params.rsplit('_', 1)  # Разделяем с конца только 1 раз
+                faq_id = parts[0]  # "faq_26ba5775"
+                original_query_log_id = int(parts[1]) if len(parts) > 1 else None  # 98
+
+                # Получаем FAQ по ID
+                faq = database.get_faq_by_id(faq_id)
+                if faq:
+                    # Логируем выбранный ответ
+                    answer_log_id = None
+                    if original_query_log_id:
+                        answer_log_id = database.add_answer_log(
+                            query_log_id=original_query_log_id,
+                            faq_id=faq_id,
+                            similarity_score=100.0,  # Выбор пользователя = 100%
+                            answer_shown=faq['answer'],
+                            search_level='disambiguation'
+                        )
+
+                    # Создаем SearchResult для отправки ответа
+                    from src.core.search import SearchResult
+                    result = SearchResult(
+                        found=True,
+                        faq_id=faq_id,
+                        question=faq['question'],
+                        answer=faq['answer'],
+                        confidence=100.0,
+                        search_level='disambiguation',
+                        all_results=None,
+                        message=None
+                    )
+
+                    # Отправляем ответ
+                    send_answer(event, api, result, answer_log_id)
+
+                    # Получаем ID сообщения с вариантами из словаря
+                    disambiguation_msg_id = None
+                    if hasattr(send_disambiguation, 'message_ids') and original_query_log_id:
+                        disambiguation_msg_id = send_disambiguation.message_ids.pop(original_query_log_id, None)
+
+                    # Удаляем сообщение с вариантами выбора
+                    msg_id_to_delete = disambiguation_msg_id or message_id
+                    if msg_id_to_delete:
+                        logger.debug(f"🗑️ Удаление сообщения с вариантами выбора {msg_id_to_delete}")
+                        api.delete_message(msg_id_to_delete)
+                else:
+                    logger.error(f"❌ FAQ с ID {faq_id} не найден")
+            except (ValueError, IndexError) as e:
+                logger.error(f"Ошибка парсинга params для disambig: {params}, error: {e}")
+        else:
+            logger.error(f"⚠️ Нет params в команде disambig")
     else:
         logger.warning(f"⚠️ Неизвестная команда: {command_lower}")
 

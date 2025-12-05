@@ -463,7 +463,43 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = find_answer(query, collection)
 
         if result.found:
-            # Нашли ответ!
+            # Проверяем на неоднозначность (disambiguation)
+            if result.ambiguous and result.alternatives:
+                logger.info(f"⚠️ Обнаружена неоднозначность! Найдено {len(result.alternatives)} альтернатив")
+
+                # Логируем показ вариантов
+                questions_shown = "\n".join([f"- {alt['question']}" for alt in result.alternatives])
+                database.add_answer_log(
+                    query_log_id=query_log_id,
+                    faq_id=None,  # Конкретный FAQ еще не выбран
+                    similarity_score=result.confidence,
+                    answer_shown=f"Показаны варианты для выбора ({len(result.alternatives)} шт.):\n{questions_shown}",
+                    search_level='disambiguation_shown'
+                )
+
+                # Показываем уточняющий вопрос с кнопками выбора
+                response = "Найдено несколько подходящих вопросов. Выберите нужный:"
+
+                keyboard = []
+                for alt in result.alternatives:
+                    # Кнопка с вопросом (без сокращения)
+                    keyboard.append([InlineKeyboardButton(
+                        alt['question'],
+                        callback_data=f"disambig_{alt['faq_id']}_{query_log_id}"
+                    )])
+
+                # Кнопка назад к категориям
+                keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
+
+                await safe_send_message(
+                    update.message.reply_text,
+                    response,
+                    parse_mode='HTML',
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+                return
+
+            # Нашли однозначный ответ!
             logger.info(f"✅ Ответ найден через {result.search_level} (confidence: {result.confidence:.1f}%)")
 
             # Логируем показанный ответ
@@ -631,6 +667,68 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='HTML',
             user_id=user.id
         )
+
+    elif data.startswith("disambig_"):
+        # Обработка выбора FAQ из disambiguation
+        # faq_id имеет формат "faq_XXXXXXXX", поэтому используем rsplit с конца
+        params = data.replace("disambig_", "")
+        parts = params.rsplit("_", 1)  # Разделяем с конца только 1 раз
+        faq_id = parts[0]  # "faq_26ba5775"
+        original_query_log_id = int(parts[1]) if len(parts) > 1 else None  # 98
+
+        try:
+            # Получаем FAQ по ID
+            faq = database.get_faq_by_id(faq_id)
+            if faq:
+                response = f"<b>{faq['question']}</b>\n\n{faq['answer']}"
+
+                # Логируем выбранный ответ (используем оригинальный query_log_id)
+                answer_log_id = None
+                if original_query_log_id:
+                    answer_log_id = database.add_answer_log(
+                        query_log_id=original_query_log_id,
+                        faq_id=faq_id,
+                        similarity_score=100.0,  # Выбор пользователя = 100%
+                        answer_shown=faq['answer'],
+                        search_level='disambiguation'  # Новый уровень для disambiguation
+                    )
+
+                # Формируем клавиатуру с кнопками обратной связи
+                keyboard = []
+
+                # Кнопки обратной связи
+                yes_text = bot_settings_cache.get("feedback_button_yes", database.DEFAULT_BOT_SETTINGS["feedback_button_yes"])
+                no_text = bot_settings_cache.get("feedback_button_no", database.DEFAULT_BOT_SETTINGS["feedback_button_no"])
+                keyboard.append([
+                    InlineKeyboardButton(yes_text, callback_data=f"helpful_yes_{answer_log_id or 0}"),
+                    InlineKeyboardButton(no_text, callback_data=f"helpful_no_{answer_log_id or 0}")
+                ])
+
+                # Кнопка назад к категориям
+                keyboard.append([InlineKeyboardButton("◀️ Назад к категориям", callback_data="back_to_cats")])
+
+                await safe_send_message(
+                    query.edit_message_text,
+                    response,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode='HTML',
+                    user_id=user.id
+                )
+            else:
+                await safe_send_message(
+                    query.edit_message_text,
+                    "❌ Не удалось получить запись.",
+                    parse_mode='HTML',
+                    user_id=user.id
+                )
+        except Exception as e:
+            logger.error(f"Ошибка при обработке disambiguation: {e}")
+            await safe_send_message(
+                query.edit_message_text,
+                "❌ Ошибка при получении записи.",
+                parse_mode='HTML',
+                user_id=user.id
+            )
 
     elif data.startswith("show_"):
         faq_id = data.replace("show_", "")

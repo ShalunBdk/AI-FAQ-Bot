@@ -127,6 +127,8 @@ class SearchResult:
         search_level: Уровень поиска ('exact', 'keyword', 'semantic', 'none', 'direct')
         all_results: Полные результаты ChromaDB (для похожих вопросов)
         message: Сообщение для пользователя (используется для fallback)
+        ambiguous: Флаг неоднозначности (несколько FAQ с близким score)
+        alternatives: Список альтернативных FAQ (для disambiguation)
     """
     found: bool
     faq_id: Optional[str]
@@ -136,6 +138,8 @@ class SearchResult:
     search_level: str
     all_results: Optional[Dict]
     message: Optional[str]
+    ambiguous: bool = False
+    alternatives: Optional[List[Dict]] = None
 
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
@@ -320,7 +324,7 @@ def find_exact_match(query_text: str) -> Optional[SearchResult]:
 
 # ========== УРОВЕНЬ 2: KEYWORD SEARCH ==========
 
-def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float = 80.0) -> Optional[SearchResult]:
+def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float = 80.0, n_results: int = 5) -> Optional[SearchResult]:
     """
     Уровень 2: Поиск по ключевым словам (только для коротких запросов)
 
@@ -330,6 +334,7 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
         query_text: Текст запроса
         max_query_words: Максимум слов в запросе для keyword search
         threshold: Минимальный порог уверенности (по умолчанию 80%)
+        n_results: Количество результатов для проверки disambiguation
 
     Returns:
         SearchResult с confidence 80-95% или None
@@ -384,17 +389,21 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
                 FROM faq
                 WHERE {where_clause}
                 ORDER BY match_count DESC
-                LIMIT 1
+                LIMIT {n_results}
             """
 
             # Полные параметры: для подсчета + для WHERE
             full_params = count_params + params
 
             cursor.execute(query_sql, full_params)
-            row = cursor.fetchone()
+            rows = cursor.fetchall()
 
-            if row and row["match_count"] > 0:
-                # Вычисляем confidence
+            if not rows or rows[0]["match_count"] == 0:
+                return None
+
+            # Вычисляем confidence для всех результатов
+            candidates = []
+            for row in rows:
                 matched_keywords = row["match_count"]
 
                 # Получаем ключевые слова из FAQ
@@ -407,22 +416,51 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
                     total_faq_keywords=len(faq_keywords)
                 )
 
-                logger.debug(f"  [Keyword Search] Совпадений: {matched_keywords}/{len(query_keywords)}, confidence: {confidence:.1f}%")
-
-                # Проверяем порог уверенности
+                # Добавляем только результаты выше порога
                 if confidence >= threshold:
-                    return SearchResult(
-                        found=True,
-                        faq_id=row["id"],
-                        question=row["question"],
-                        answer=row["answer"],
-                        confidence=confidence,
-                        search_level='keyword',
-                        all_results=None,
-                        message=None
-                    )
-                else:
-                    logger.debug(f"  [Keyword Search] Отклонено: confidence {confidence:.1f}% < {threshold}%")
+                    candidates.append({
+                        'faq_id': row["id"],
+                        'question': row["question"],
+                        'answer': row["answer"],
+                        'confidence': confidence
+                    })
+
+            if not candidates:
+                logger.debug(f"  [Keyword Search] Нет результатов выше порога {threshold}%")
+                return None
+
+            # Лучший результат
+            best = candidates[0]
+            logger.debug(f"  [Keyword Search] Лучший результат: confidence={best['confidence']:.1f}%")
+
+            # Проверяем на disambiguation (разница < 15% между топ-2)
+            ambiguous = False
+            alternatives = []
+
+            if len(candidates) > 1:
+                confidence_diff = best['confidence'] - candidates[1]['confidence']
+                logger.debug(f"  [Keyword Search] Разница confidence: {confidence_diff:.1f}%")
+
+                if confidence_diff < 15.0:
+                    ambiguous = True
+                    # Собираем все близкие альтернативы
+                    for candidate in candidates:
+                        if best['confidence'] - candidate['confidence'] < 15.0:
+                            alternatives.append(candidate)
+                    logger.debug(f"  [Keyword Search] Обнаружена неоднозначность! Альтернатив: {len(alternatives)}")
+
+            return SearchResult(
+                found=True,
+                faq_id=best['faq_id'],
+                question=best['question'],
+                answer=best['answer'],
+                confidence=best['confidence'],
+                search_level='keyword',
+                all_results=None,
+                message=None,
+                ambiguous=ambiguous,
+                alternatives=alternatives if ambiguous else None
+            )
 
     except Exception as e:
         logger.error(f"Ошибка в find_by_keywords: {e}", exc_info=True)
@@ -436,7 +474,7 @@ def find_semantic_match(
     query_text: str,
     collection,
     threshold: float = 45.0,
-    n_results: int = 3
+    n_results: int = 5
 ) -> Optional[SearchResult]:
     """
     Уровень 3: Семантический поиск через ChromaDB
@@ -448,7 +486,7 @@ def find_semantic_match(
         query_text: Текст запроса
         collection: ChromaDB коллекция
         threshold: Порог схожести (по умолчанию из настроек)
-        n_results: Количество результатов
+        n_results: Количество результатов для проверки disambiguation
 
     Returns:
         SearchResult с confidence >= threshold или None
@@ -468,27 +506,59 @@ def find_semantic_match(
             logger.debug("  [Semantic Search] Ничего не найдено в ChromaDB")
             return None
 
+        # Вычисляем confidence для всех результатов
+        candidates = []
+        for i in range(len(results['ids'][0])):
+            distance = results['distances'][0][i]
+            similarity = max(0.0, 1.0 - distance) * 100.0
+            metadata = results['metadatas'][0][i]
+            faq_id = results['ids'][0][i]
+
+            # Добавляем только результаты выше порога
+            if similarity >= threshold:
+                candidates.append({
+                    'faq_id': faq_id,
+                    'question': metadata['question'],
+                    'answer': metadata['answer'],
+                    'confidence': similarity
+                })
+
+        if not candidates:
+            logger.debug(f"  [Semantic Search] Нет результатов выше порога {threshold}%")
+            return None
+
         # Лучший результат
-        best_distance = results['distances'][0][0]
-        similarity = max(0.0, 1.0 - best_distance) * 100.0
-        best_metadata = results['metadatas'][0][0]
-        faq_id = results['ids'][0][0]
+        best = candidates[0]
+        logger.debug(f"  [Semantic Search] Лучший результат: similarity={best['confidence']:.1f}%")
 
-        logger.debug(f"  [Semantic Search] Лучший результат: similarity={similarity:.1f}%, threshold={threshold}%")
+        # Проверяем на disambiguation (разница < 15% между топ-2)
+        ambiguous = False
+        alternatives = []
 
-        if similarity >= threshold:
-            return SearchResult(
-                found=True,
-                faq_id=faq_id,
-                question=best_metadata['question'],
-                answer=best_metadata['answer'],
-                confidence=similarity,
-                search_level='semantic',
-                all_results=results,
-                message=None
-            )
-        else:
-            logger.debug(f"  [Semantic Search] Отклонено: similarity {similarity:.1f}% < threshold {threshold}%")
+        if len(candidates) > 1:
+            confidence_diff = best['confidence'] - candidates[1]['confidence']
+            logger.debug(f"  [Semantic Search] Разница confidence: {confidence_diff:.1f}%")
+
+            if confidence_diff < 15.0:
+                ambiguous = True
+                # Собираем все близкие альтернативы
+                for candidate in candidates:
+                    if best['confidence'] - candidate['confidence'] < 15.0:
+                        alternatives.append(candidate)
+                logger.debug(f"  [Semantic Search] Обнаружена неоднозначность! Альтернатив: {len(alternatives)}")
+
+        return SearchResult(
+            found=True,
+            faq_id=best['faq_id'],
+            question=best['question'],
+            answer=best['answer'],
+            confidence=best['confidence'],
+            search_level='semantic',
+            all_results=results,
+            message=None,
+            ambiguous=ambiguous,
+            alternatives=alternatives if ambiguous else None
+        )
 
     except Exception as e:
         logger.error(f"Ошибка в find_semantic_match: {e}", exc_info=True)
