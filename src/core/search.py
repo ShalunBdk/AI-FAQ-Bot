@@ -433,7 +433,7 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
             best = candidates[0]
             logger.debug(f"  [Keyword Search] Лучший результат: confidence={best['confidence']:.1f}%")
 
-            # Проверяем на disambiguation (разница < 15% между топ-2)
+            # Проверяем на disambiguation (разница < 7% между топ-2)
             ambiguous = False
             alternatives = []
 
@@ -441,11 +441,11 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
                 confidence_diff = best['confidence'] - candidates[1]['confidence']
                 logger.debug(f"  [Keyword Search] Разница confidence: {confidence_diff:.1f}%")
 
-                if confidence_diff < 15.0:
+                if confidence_diff < 7.0:
                     ambiguous = True
-                    # Собираем все близкие альтернативы
-                    for candidate in candidates:
-                        if best['confidence'] - candidate['confidence'] < 15.0:
+                    # Собираем близкие альтернативы (макс 3, разница < 12%)
+                    for candidate in candidates[:3]:  # Ограничиваем 3 максимум
+                        if best['confidence'] - candidate['confidence'] < 12.0:
                             alternatives.append(candidate)
                     logger.debug(f"  [Keyword Search] Обнаружена неоднозначность! Альтернатив: {len(alternatives)}")
 
@@ -497,7 +497,7 @@ def find_semantic_match(
 
     try:
         results = collection.query(
-            query_texts=[query_text],
+            query_texts=[f"search_query: {query_text}"],
             n_results=n_results,
             include=["documents", "metadatas", "distances"]
         )
@@ -531,7 +531,7 @@ def find_semantic_match(
         best = candidates[0]
         logger.debug(f"  [Semantic Search] Лучший результат: similarity={best['confidence']:.1f}%")
 
-        # Проверяем на disambiguation (разница < 15% между топ-2)
+        # Проверяем на disambiguation (разница < 7% между топ-2)
         ambiguous = False
         alternatives = []
 
@@ -539,11 +539,11 @@ def find_semantic_match(
             confidence_diff = best['confidence'] - candidates[1]['confidence']
             logger.debug(f"  [Semantic Search] Разница confidence: {confidence_diff:.1f}%")
 
-            if confidence_diff < 15.0:
+            if confidence_diff < 7.0:
                 ambiguous = True
-                # Собираем все близкие альтернативы
-                for candidate in candidates:
-                    if best['confidence'] - candidate['confidence'] < 15.0:
+                # Собираем близкие альтернативы (макс 3, разница < 12%)
+                for candidate in candidates[:3]:  # Ограничиваем 3 максимум
+                    if best['confidence'] - candidate['confidence'] < 12.0:
                         alternatives.append(candidate)
                 logger.debug(f"  [Semantic Search] Обнаружена неоднозначность! Альтернатив: {len(alternatives)}")
 

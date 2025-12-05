@@ -243,7 +243,7 @@ def retrain_chromadb():
         documents, metadatas, ids = [], [], []
         for faq in all_faqs:
             text = f"{faq['question']} {' '.join(faq.get('keywords', []))}"
-            documents.append(text)
+            documents.append(f"search_document: {text}")
             metadatas.append({
                 "category": faq["category"],
                 "question": faq["question"],
@@ -941,7 +941,7 @@ def semantic_search():
         
         # Выполняем семантический поиск
         results = collection.query(
-            query_texts=[query],
+            query_texts=[f"search_query: {query}"],
             n_results=n_results,
             include=["documents", "metadatas", "distances"]
         )
@@ -1606,7 +1606,7 @@ def public_api_search():
 
         # Выполняем семантический поиск
         results = collection.query(
-            query_texts=[query],
+            query_texts=[f"search_query: {query}"],
             n_results=5,
             include=["documents", "metadatas", "distances"]
         )

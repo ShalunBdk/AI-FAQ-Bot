@@ -377,6 +377,22 @@
         cells.forEach(cell => cell.style.display = displayValue);
     }
 
+    // Переключение отображения деталей disambiguation
+    function toggleDisambiguationDetails(answerId) {
+        const detailsDiv = document.getElementById(`disambiguation-details-${answerId}`);
+        const icon = document.getElementById(`toggle-icon-${answerId}`);
+
+        if (detailsDiv && icon) {
+            detailsDiv.classList.toggle('hidden');
+            // Меняем иконку при раскрытии/сворачивании
+            if (detailsDiv.classList.contains('hidden')) {
+                icon.textContent = 'expand_more';
+            } else {
+                icon.textContent = 'expand_less';
+            }
+        }
+    }
+
     // Загрузка статистики
     async function loadStatistics() {
         try {
@@ -457,13 +473,14 @@
             }
         });
 
-        logs.forEach((log) => {
+        logs.forEach((log, logIndex) => {
             // Пропускаем строки с 'disambiguation_shown', если пользователь уже выбрал вариант
             if (log.search_level === 'disambiguation_shown' && queryIdsWithBoth.has(log.query_id)) {
                 return; // Не показываем эту строку в таблице
             }
 
             const row = document.createElement("tr");
+            const uniqueId = `${log.query_id}_${log.answer_log_id || logIndex}`; // Уникальный ID для каждой строки
 
             // Исключаем disambiguation из "нет ответа" - это не ошибка, а уточнение
             const isDisambiguation = ['disambiguation_shown', 'disambiguation'].includes(log.search_level);
@@ -524,7 +541,26 @@
                 </td>
                 <td class="px-6 py-4" data-column="answer">
                     ${log.search_level === 'disambiguation_shown' ?
-                        '<span class="text-blue-600 dark:text-blue-400 font-semibold text-sm">🔀 Показаны варианты для выбора</span>' :
+                        `<div class="relative">
+                            <button onclick="toggleDisambiguationDetails('${uniqueId}')"
+                                    class="text-blue-600 dark:text-blue-400 font-semibold text-sm hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer flex items-center gap-1 transition-colors">
+                                <span>🔀 Показаны варианты для выбора</span>
+                                <span id="toggle-icon-${uniqueId}" class="material-symbols-outlined text-sm">expand_more</span>
+                            </button>
+                            <div id="disambiguation-details-${uniqueId}" class="hidden mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <div class="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-2">Варианты:</div>
+                                <div class="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                                    ${(log.answer_shown || '').split('\n').filter(line => line.trim().startsWith('-')).map(line => {
+                                        const cleanLine = line.trim().substring(1).trim();
+                                        const escaped = cleanLine.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                        return `<div class="flex items-start gap-2">
+                                                <span class="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                                                <span>${escaped}</span>
+                                            </div>`;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        </div>` :
                         log.faq_question ? `
                             <div class="max-w-xs truncate text-gray-800 dark:text-gray-200" title="${log.faq_question}">${log.faq_question}</div>
                             <div class="text-xs text-gray-500 dark:text-gray-400">${log.category || ""}</div>

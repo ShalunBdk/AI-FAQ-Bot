@@ -353,7 +353,7 @@ def init_demo_data():
 
         for faq in all_faqs:
             text = f"{faq['question']} {' '.join(faq.get('keywords', []))}"
-            documents.append(text)
+            documents.append(f"search_document: {text}")
             metadatas.append({
                 "category": faq["category"],
                 "question": faq["question"],
@@ -374,7 +374,7 @@ def find_best_match(query_text: str, n_results: int = 3):
     """
     try:
         results = collection.query(
-            query_texts=[query_text],
+            query_texts=[f"search_query: {query_text}"],
             n_results=n_results,
             include=["documents", "metadatas", "distances"],
         )
@@ -467,8 +467,8 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if result.ambiguous and result.alternatives:
                 logger.info(f"⚠️ Обнаружена неоднозначность! Найдено {len(result.alternatives)} альтернатив")
 
-                # Логируем показ вариантов
-                questions_shown = "\n".join([f"- {alt['question']}" for alt in result.alternatives])
+                # Логируем показ вариантов (с процентами confidence)
+                questions_shown = "\n".join([f"- [{alt['confidence']:.1f}%] {alt['question']}" for alt in result.alternatives])
                 database.add_answer_log(
                     query_log_id=query_log_id,
                     faq_id=None,  # Конкретный FAQ еще не выбран
@@ -482,10 +482,11 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 keyboard = []
                 for alt in result.alternatives:
-                    # Кнопка с вопросом (без сокращения)
+                    # Кнопка с вопросом (без процента - проценты только в логах)
+                    # Передаем confidence в callback_data для логирования
                     keyboard.append([InlineKeyboardButton(
                         alt['question'],
-                        callback_data=f"disambig_{alt['faq_id']}_{query_log_id}"
+                        callback_data=f"disambig_{alt['faq_id']}_{query_log_id}_{alt['confidence']:.1f}"
                     )])
 
                 # Кнопка назад к категориям
@@ -670,11 +671,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("disambig_"):
         # Обработка выбора FAQ из disambiguation
-        # faq_id имеет формат "faq_XXXXXXXX", поэтому используем rsplit с конца
+        # Формат: disambig_faq_XXXXXXXX_query_log_id_confidence
         params = data.replace("disambig_", "")
-        parts = params.rsplit("_", 1)  # Разделяем с конца только 1 раз
+        parts = params.rsplit("_", 2)  # Разделяем с конца: faq_id, query_log_id, confidence
         faq_id = parts[0]  # "faq_26ba5775"
-        original_query_log_id = int(parts[1]) if len(parts) > 1 else None  # 98
+        original_query_log_id = int(parts[1]) if len(parts) > 1 else None
+        real_confidence = float(parts[2]) if len(parts) > 2 else 100.0  # Реальный confidence из поиска
 
         try:
             # Получаем FAQ по ID
@@ -682,13 +684,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if faq:
                 response = f"<b>{faq['question']}</b>\n\n{faq['answer']}"
 
-                # Логируем выбранный ответ (используем оригинальный query_log_id)
+                # Логируем выбранный ответ (используем реальный confidence)
                 answer_log_id = None
                 if original_query_log_id:
                     answer_log_id = database.add_answer_log(
                         query_log_id=original_query_log_id,
                         faq_id=faq_id,
-                        similarity_score=100.0,  # Выбор пользователя = 100%
+                        similarity_score=real_confidence,  # Реальный confidence из поиска
                         answer_shown=faq['answer'],
                         search_level='disambiguation'  # Новый уровень для disambiguation
                     )

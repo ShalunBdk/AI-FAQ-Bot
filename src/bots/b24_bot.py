@@ -235,7 +235,7 @@ def init_demo_data():
 
         for faq in all_faqs:
             text = f"{faq['question']} {' '.join(faq.get('keywords', []))}"
-            documents.append(text)
+            documents.append(f"search_document: {text}")
             metadatas.append({
                 "id": faq["id"],
                 "category": faq["category"],
@@ -438,8 +438,8 @@ def handle_search_faq(event: Bitrix24Event, api: Bitrix24API, is_faq_view: bool 
         if result.ambiguous and result.alternatives:
             logger.info(f"⚠️ Обнаружена неоднозначность! Найдено {len(result.alternatives)} альтернатив")
 
-            # Логируем показ вариантов
-            questions_shown = "\n".join([f"- {alt['question']}" for alt in result.alternatives])
+            # Логируем показ вариантов (с процентами confidence)
+            questions_shown = "\n".join([f"- [{alt['confidence']:.1f}%] {alt['question']}" for alt in result.alternatives])
             database.add_answer_log(
                 query_log_id=query_log_id,
                 faq_id=None,  # Конкретный FAQ еще не выбран
@@ -486,12 +486,13 @@ def send_disambiguation(event: Bitrix24Event, api: Bitrix24API, alternatives: Li
     message = "Найдено несколько подходящих вопросов. Выберите нужный:"
 
     # Формируем кнопки для каждой альтернативы
+    # Передаем confidence для логирования реального процента
     buttons = []
     for alt in alternatives:
         buttons.append([{
             'text': alt['question'],
             'action': 'disambig',
-            'params': f"{alt['faq_id']}_{query_log_id}"
+            'params': f"{alt['faq_id']}_{query_log_id}_{alt['confidence']:.1f}"
         }])
 
     keyboard = api.create_keyboard(buttons)
@@ -815,23 +816,24 @@ def handle_command_event(event: Bitrix24Event, api: Bitrix24API):
     # Выбор FAQ из disambiguation
     elif command_lower == 'disambig':
         if params:
-            # Парсим params: faq_id_query_log_id
+            # Парсим params: faq_id_query_log_id_confidence
             # faq_id имеет формат "faq_XXXXXXXX", поэтому используем rsplit с конца
             try:
-                parts = params.rsplit('_', 1)  # Разделяем с конца только 1 раз
+                parts = params.rsplit('_', 2)  # Разделяем с конца: faq_id, query_log_id, confidence
                 faq_id = parts[0]  # "faq_26ba5775"
-                original_query_log_id = int(parts[1]) if len(parts) > 1 else None  # 98
+                original_query_log_id = int(parts[1]) if len(parts) > 1 else None
+                real_confidence = float(parts[2]) if len(parts) > 2 else 100.0  # Реальный confidence из поиска
 
                 # Получаем FAQ по ID
                 faq = database.get_faq_by_id(faq_id)
                 if faq:
-                    # Логируем выбранный ответ
+                    # Логируем выбранный ответ (используем реальный confidence)
                     answer_log_id = None
                     if original_query_log_id:
                         answer_log_id = database.add_answer_log(
                             query_log_id=original_query_log_id,
                             faq_id=faq_id,
-                            similarity_score=100.0,  # Выбор пользователя = 100%
+                            similarity_score=real_confidence,  # Реальный confidence из поиска
                             answer_shown=faq['answer'],
                             search_level='disambiguation'
                         )
@@ -843,7 +845,7 @@ def handle_command_event(event: Bitrix24Event, api: Bitrix24API):
                         faq_id=faq_id,
                         question=faq['question'],
                         answer=faq['answer'],
-                        confidence=100.0,
+                        confidence=real_confidence,  # Используем реальный confidence
                         search_level='disambiguation',
                         all_results=None,
                         message=None
