@@ -375,25 +375,41 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
             # Запрос с подсчетом совпадений
             # Для каждого ключевого слова проверяем, есть ли оно в question или keywords
             match_checks = []
+            question_match_checks = []  # Отдельно для совпадений в вопросе
             count_params = []
+            question_count_params = []
+
             for keyword in query_keywords:
                 match_checks.append(
                     "(CASE WHEN LOWER(question) LIKE ? OR LOWER(keywords) LIKE ? THEN 1 ELSE 0 END)"
                 )
                 count_params.extend([f"%{keyword}%", f"%{keyword}%"])
 
+                # Отдельный подсчет для совпадений в вопросе (выше приоритет)
+                question_match_checks.append(
+                    "(CASE WHEN LOWER(question) LIKE ? THEN 1 ELSE 0 END)"
+                )
+                question_count_params.append(f"%{keyword}%")
+
             query_sql = f"""
                 SELECT
                     id, category, question, answer, keywords,
-                    ({' + '.join(match_checks)}) as match_count
+                    ({' + '.join(match_checks)}) as match_count,
+                    ({' + '.join(question_match_checks)}) as question_match_count,
+                    LENGTH(keywords) - LENGTH(REPLACE(keywords, ',', '')) + 1 as keyword_count,
+                    LENGTH(question) as question_length
                 FROM faq
                 WHERE {where_clause}
-                ORDER BY match_count DESC
+                ORDER BY
+                    match_count DESC,
+                    question_match_count DESC,
+                    question_length ASC,
+                    keyword_count ASC
                 LIMIT {n_results}
             """
 
-            # Полные параметры: для подсчета + для WHERE
-            full_params = count_params + params
+            # Полные параметры: для подсчета (match_count) + для подсчета (question_match_count) + для WHERE
+            full_params = count_params + question_count_params + params
 
             cursor.execute(query_sql, full_params)
             rows = cursor.fetchall()
@@ -405,16 +421,23 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
             candidates = []
             for row in rows:
                 matched_keywords = row["match_count"]
+                question_matches = row["question_match_count"]
 
                 # Получаем ключевые слова из FAQ
                 faq_keywords_str = row["keywords"] or ""
                 faq_keywords = [k.strip() for k in faq_keywords_str.split(",") if k.strip()]
 
+                # Базовый confidence
                 confidence = calculate_keyword_confidence(
                     matched_keywords=matched_keywords,
                     total_query_keywords=len(query_keywords),
                     total_faq_keywords=len(faq_keywords)
                 )
+
+                # Бонус за совпадение в вопросе (до +5% за каждое совпадение)
+                if question_matches > 0:
+                    question_bonus = min(5.0, question_matches * 2.5)
+                    confidence = min(95.0, confidence + question_bonus)
 
                 # Добавляем только результаты выше порога
                 if confidence >= threshold:
@@ -422,16 +445,26 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
                         'faq_id': row["id"],
                         'question': row["question"],
                         'answer': row["answer"],
-                        'confidence': confidence
+                        'confidence': confidence,
+                        'question_matches': question_matches  # Для отладки
                     })
 
             if not candidates:
                 logger.debug(f"  [Keyword Search] Нет результатов выше порога {threshold}%")
                 return None
 
+            # Сортируем кандидатов по confidence (после добавления бонусов)
+            candidates.sort(key=lambda x: x['confidence'], reverse=True)
+
             # Лучший результат
             best = candidates[0]
-            logger.debug(f"  [Keyword Search] Лучший результат: confidence={best['confidence']:.1f}%")
+            logger.debug(f"  [Keyword Search] Лучший результат: confidence={best['confidence']:.1f}%, question_matches={best['question_matches']}")
+
+            # Логируем топ-3 для отладки
+            if len(candidates) > 1:
+                logger.debug(f"  [Keyword Search] Топ-3 результатов:")
+                for i, candidate in enumerate(candidates[:3], 1):
+                    logger.debug(f"    {i}. [{candidate['confidence']:.1f}%] {candidate['question'][:50]}... (q_matches={candidate['question_matches']})")
 
             # Проверяем на disambiguation (разница < 7% между топ-2)
             ambiguous = False

@@ -101,17 +101,21 @@ def create_collection_with_keywords(
 
     for faq in faqs:
         # Обрабатываем ключевые слова
-        keywords_str = faq.get('keywords', '')
-        if keywords_str:
-            keywords_list = [kw.strip() for kw in keywords_str.split(',') if kw.strip()]
+        keywords_data = faq.get('keywords', '')
 
-            if lemmatize_keywords:
-                # Лемматизируем каждое ключевое слово
-                keywords_list = [lemmatize_word(kw) for kw in keywords_list]
-
-            keywords = ' '.join(keywords_list)
+        # Проверяем тип данных (может быть строка или список)
+        if isinstance(keywords_data, list):
+            keywords_list = keywords_data
+        elif isinstance(keywords_data, str):
+            keywords_list = [kw.strip() for kw in keywords_data.split(',') if kw.strip()]
         else:
-            keywords = ''
+            keywords_list = []
+
+        if keywords_list and lemmatize_keywords:
+            # Лемматизируем каждое ключевое слово
+            keywords_list = [lemmatize_word(kw) for kw in keywords_list]
+
+        keywords = ' '.join(keywords_list) if keywords_list else ''
 
         # Формируем текст документа
         text = f"{faq['question']} {keywords}"
