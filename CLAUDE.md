@@ -2,10 +2,11 @@
 
 > **Purpose**: Comprehensive context about the AI-FAQ-Bot codebase for AI assistants.
 
-**Last Updated**: 2025-12-05
+**Last Updated**: 2025-12-18
 **Language**: Python 3.11
-**Stack**: python-telegram-bot, ChromaDB, sentence-transformers, pymorphy3, Flask, SQLite
+**Stack**: python-telegram-bot, ChromaDB, sentence-transformers, pymorphy3, Flask, SQLite, OpenRouter API
 **Semantic Model**: deepvk/USER2-base (Russian-optimized, 8K context, with task-specific prefixes)
+**RAG**: OpenRouter API (GPT-4, Claude, Gemini) with Privacy First anonymization
 
 ---
 
@@ -15,9 +16,15 @@ Multi-platform FAQ bot with **cascading search system** (4 levels) and semantic 
 
 ### Key Features
 
-- **Cascading Search (4 levels)**:
+- **Cascading Search (4 levels) + RAG**:
   - 🎯 Exact Match (100%) → 🔑 Keyword Search with Lemmatization (70-95%) → 🧠 Semantic Search (45-70%) → ❌ Fallback
   - Automatic word form recognition (претензию, претензии → претензия)
+  - 🤖 **RAG Generation** (optional): Smart answer generation via LLM after search
+- **Privacy First RAG**:
+  - 🔒 PII Anonymization before sending to LLM (emails, phones, names, orgs, locations)
+  - 🤖 Answer generation via OpenRouter API (GPT-4, Claude, Gemini, etc.)
+  - 🔓 Deanonymization of LLM responses back to original data
+  - 📊 Combining information from multiple FAQs into coherent answer
 - **Disambiguation (Уточнение)**:
   - 🔀 Automatic detection of ambiguous queries (when multiple FAQs have similar confidence)
   - ✅ User selects the correct FAQ from presented options
@@ -41,10 +48,21 @@ Multi-platform FAQ bot with **cascading search system** (4 levels) and semantic 
 └──────┬──────┴──────┬──────┴─────────┬──────────────────┘
        └─────────────┴────────────────┘
                      │
-       ┌─────────────┴─────────────┐
-       │     Shared Data Layer     │
-       │  SQLite + ChromaDB        │
-       └───────────────────────────┘
+       ┌─────────────┴─────────────────┐
+       │   Core Search & RAG Layer     │
+       │  Cascading Search → LLM       │
+       │  Privacy First (Anonymization)│
+       └─────────────┬─────────────────┘
+                     │
+       ┌─────────────┴─────────────────┐
+       │     Shared Data Layer         │
+       │  SQLite + ChromaDB            │
+       └─────────────┬─────────────────┘
+                     │
+       ┌─────────────┴─────────────────┐
+       │   External Services           │
+       │  OpenRouter API (LLM)         │
+       └───────────────────────────────┘
 ```
 
 ---
@@ -67,6 +85,8 @@ FAQBot/
 │   ├── core/
 │   │   ├── database.py        # SQLite ORM, settings, logging
 │   │   ├── search.py          # Cascading search (4 levels)
+│   │   ├── llm_service.py     # RAG: LLM generation via OpenRouter
+│   │   ├── pii_anonymizer.py  # RAG: Privacy First anonymization
 │   │   └── logging_config.py  # UTC+7 logging
 │   ├── bots/
 │   │   ├── bot.py             # Telegram bot (опциональный)
@@ -82,10 +102,13 @@ FAQBot/
 ├── scripts/
 │   ├── migrate_*.py           # Database migrations
 │   ├── test_cascade_search.py # Search system tests
+│   ├── test_rag_pipeline.py   # RAG pipeline tests
 │   ├── demo_faq.py            # Demo data (21 FAQs)
 │   └── register_bot.py        # Регистрация в Bitrix24
 │
 ├── docs/                      # Техническая документация
+│   ├── RAG_GUIDE.md           # RAG (Privacy First) guide
+│   ├── QUICKSTART_RAG.md      # RAG quick start
 │   ├── DEPLOYMENT.md
 │   ├── DOCKER.md
 │   ├── QUICKSTART.md
@@ -189,7 +212,114 @@ When multiple FAQs have similar confidence scores (difference < 7%), the system 
 - `src/web/templates/admin/logs.html`: Frontend filtering (lines 441-464)
 - `src/core/database.py`: SQL exclusions (lines 626, 717-724, 1373-1381, 1518-1520)
 
-### 2. Database (`src/core/database.py`)
+### 2. RAG (Retrieval-Augmented Generation) (`src/core/llm_service.py` + `src/core/pii_anonymizer.py`)
+
+**Privacy First RAG architecture with PII anonymization:**
+
+```
+User Query → Cascading Search → [RAG ENABLED?]
+                                      ↓
+                         1. Prepare context from found FAQs
+                         2. Anonymize PII (PiiAnonymizer)
+                         3. Send to LLM (OpenRouter API)
+                         4. Deanonymize response
+                         5. Return to user
+```
+
+**Key Components:**
+
+#### PiiAnonymizer (`src/core/pii_anonymizer.py`)
+
+**Purpose:** Protect personal data before sending to cloud LLM.
+
+**Anonymization layers:**
+1. **BB-code URLs** (regex) - `[URL=...]text[/URL]` → `[URL_1]` (protects employee profiles)
+2. **Emails** (regex) - `ivan@example.com` → `[EMAIL_1]`
+3. **Phones** (regex) - `+7 (999) 123-45-67` → `[PHONE_1]`
+4. **NER (natasha)** - DISABLED (too many false positives, protected via BB URL anonymization)
+
+**Usage:**
+```python
+from src.core.pii_anonymizer import PiiAnonymizer
+
+anonymizer = PiiAnonymizer()
+anonymized, mapping = anonymizer.anonymize("Звоните Ивану: ivan@corp.com")
+# anonymized: "Звоните [PER_1]: [EMAIL_1]"
+# mapping: {"[PER_1]": "Ивану", "[EMAIL_1]": "ivan@corp.com"}
+
+original = anonymizer.deanonymize(anonymized, mapping)
+# original: "Звоните Ивану: ivan@corp.com"
+```
+
+#### LLMService (`src/core/llm_service.py`)
+
+**Purpose:** Generate smart answers via LLM with anonymization.
+
+**Features:**
+- OpenRouter API integration (access to GPT-4, Claude, Gemini, etc.)
+- Automatic PII anonymization/deanonymization
+- Context preparation from multiple FAQs
+- Customizable system prompt with department routing
+- Token usage tracking
+
+**Main method:**
+```python
+from src.core.llm_service import LLMService
+
+service = LLMService()
+answer, metadata = service.generate_answer(
+    user_question="Как связаться с бухгалтерией?",
+    db_chunks=[
+        {
+            'question': 'Контакты бухгалтерии',
+            'answer': 'Бухгалтерия: Мария, тел. +7 495 123-45-67',
+            'confidence': 92.3
+        }
+    ],
+    max_tokens=1024,
+    temperature=0.3
+)
+# Returns: (generated_answer, metadata with tokens/pii info)
+```
+
+**System Prompt highlights:**
+- Uses department routing knowledge base (23 departments)
+- Strict rules: answer only from context, don't hallucinate
+- Preserves placeholders (`[PER_1]`, `[EMAIL_1]`) as-is
+- Builds logical conclusions from context
+
+**Integration in bots:**
+- `src/bots/bot.py` (Telegram): lines 527-596
+- `src/bots/b24_bot.py` (Bitrix24): lines 481-559
+- Triggered AFTER cascading search finds results
+- Automatic fallback to regular answer on LLM errors
+- When RAG enabled, disambiguation bypassed (LLM combines multiple FAQs)
+
+**Configuration (.env):**
+```env
+RAG_ENABLED=true                     # enable/disable RAG
+OPENROUTER_API_KEY=sk-or-v1-xxx     # OpenRouter API key
+OPENROUTER_MODEL=openai/gpt-4o-mini # LLM model
+RAG_MAX_TOKENS=1024                  # max tokens in response
+RAG_TEMPERATURE=0.3                  # generation temperature (0.0-1.0)
+RAG_MIN_RELEVANCE_SCORE=45.0         # min confidence to use RAG
+RAG_MAX_CHUNKS=5                     # max FAQs in context
+```
+
+**Recommended models:**
+- `google/gemini-2.0-flash-001` - FREE, good quality
+- `openai/gpt-4o-mini` - $0.15/$0.60 per 1M tokens (production recommended)
+- `openai/gpt-4o` - $2.50/$10.00 per 1M tokens (high quality)
+- `anthropic/claude-3.5-sonnet` - $3.00/$15.00 per 1M tokens
+
+**Testing:**
+```bash
+python scripts/test_rag_pipeline.py
+```
+
+See `docs/RAG_GUIDE.md` for complete documentation.
+
+### 3. Database (`src/core/database.py`)
 
 **Key functions:**
 ```python
@@ -227,7 +357,9 @@ get_failed_queries_for_period(period_id, limit) → List[Dict]
 - `bitrix24_permissions` (domain, user_id, role)
 - `test_periods` (id, name, description, start_date, end_date, status)
 
-### 3. Bots
+**Note on RAG:** RAG-generated answers are stored in `answer_logs.answer_shown` field. Search level remains original (exact/keyword/semantic), not "rag".
+
+### 4. Bots
 
 **Telegram** (`src/bots/bot.py`):
 - Long-polling + Flask reload server (port 5001)
@@ -239,7 +371,13 @@ get_failed_queries_for_period(period_id, limit) → List[Dict]
 - Events: `ONIMBOTMESSAGEADD`, `ONIMCOMMANDADD`, `ONIMBOTJOINCHAT`
 - BB-code formatting for messages
 
-### 4. Web Admin (`src/web/web_admin.py`)
+**RAG Integration (both bots):**
+- Triggered after cascading search finds result (confidence >= RAG_MIN_RELEVANCE_SCORE)
+- Ленивая инициализация LLM сервиса при первом использовании
+- Automatic fallback to regular answer on errors
+- When disambiguation detected and RAG enabled → uses all alternatives for context
+
+### 5. Web Admin (`src/web/web_admin.py`)
 
 **Routes:**
 - `GET/POST /admin/` - FAQ management
@@ -399,6 +537,15 @@ SIMILARITY_THRESHOLD=45
 BITRIX24_WEBHOOK=https://...
 BITRIX24_BOT_ID=62
 BITRIX24_CLIENT_ID=...
+
+# RAG (Optional - for smart answer generation)
+RAG_ENABLED=true
+OPENROUTER_API_KEY=sk-or-v1-xxx
+OPENROUTER_MODEL=openai/gpt-4o-mini
+RAG_MAX_TOKENS=1024
+RAG_TEMPERATURE=0.3
+RAG_MIN_RELEVANCE_SCORE=45.0
+RAG_MAX_CHUNKS=5
 ```
 
 ### Cascade Search Settings (bot_settings table)
@@ -409,6 +556,17 @@ BITRIX24_CLIENT_ID=...
 | semantic_match_threshold | 45 | Semantic search minimum |
 | keyword_search_max_words | 5 | Max words for keyword search |
 | fallback_message | ... | Custom fallback text |
+
+### RAG Settings (.env variables)
+| Key | Default | Description |
+|-----|---------|-------------|
+| RAG_ENABLED | true | Enable/disable RAG generation |
+| OPENROUTER_API_KEY | - | OpenRouter API key (REQUIRED if RAG enabled) |
+| OPENROUTER_MODEL | openai/gpt-4o-mini | LLM model to use |
+| RAG_MAX_TOKENS | 1024 | Max tokens in LLM response |
+| RAG_TEMPERATURE | 0.3 | Generation temperature (0.0-1.0) |
+| RAG_MIN_RELEVANCE_SCORE | 45.0 | Min confidence to trigger RAG |
+| RAG_MAX_CHUNKS | 5 | Max FAQs in context |
 
 ---
 
@@ -425,6 +583,8 @@ BITRIX24_CLIENT_ID=...
 | Purpose | File |
 |---------|------|
 | Cascading search | `src/core/search.py` |
+| RAG LLM service | `src/core/llm_service.py` |
+| RAG PII anonymization | `src/core/pii_anonymizer.py` |
 | Database ORM | `src/core/database.py` |
 | Telegram bot | `src/bots/bot.py` |
 | Bitrix24 bot | `src/bots/b24_bot.py` |
@@ -466,6 +626,9 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ✅ Exclude `disambiguation_shown` and `disambiguation` from "no answer" / "failed queries" filters
 - ✅ Use `search_query:` prefix for queries and `search_document:` for documents (deepvk/USER2-base)
 - ✅ Save REAL confidence in disambiguation logs (not 100%)
+- ✅ Use RAG for improving answer quality when confidence >= RAG_MIN_RELEVANCE_SCORE
+- ✅ Always anonymize PII before sending to LLM (automatic in LLMService)
+- ✅ Test RAG pipeline with `scripts/test_rag_pipeline.py`
 
 **DON'T:**
 - ❌ Store UTC+7 directly (store UTC)
@@ -475,7 +638,10 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ❌ Add all word forms manually (use lemmatization)
 - ❌ Count disambiguation as failed queries in statistics
 - ❌ Forget prefixes when using deepvk/USER2-base model
+- ❌ Send raw PII to LLM (always use LLMService which handles anonymization)
+- ❌ Hardcode OpenRouter API key (use environment variable)
+- ❌ Use RAG for low-confidence results (< RAG_MIN_RELEVANCE_SCORE)
 
 ---
 
-**Document Version**: 2.3 (deepvk/USER2-base + Improved Disambiguation + Enhanced Logging)
+**Document Version**: 3.0 (deepvk/USER2-base + Improved Disambiguation + Enhanced Logging + Privacy First RAG)

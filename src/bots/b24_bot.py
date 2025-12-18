@@ -81,7 +81,7 @@ RAG_ENABLED = os.getenv('RAG_ENABLED', 'true').lower() == 'true'
 RAG_MAX_TOKENS = int(os.getenv('RAG_MAX_TOKENS', '1024'))
 RAG_TEMPERATURE = float(os.getenv('RAG_TEMPERATURE', '0.3'))
 RAG_MIN_RELEVANCE_SCORE = float(os.getenv('RAG_MIN_RELEVANCE_SCORE', '45.0'))
-RAG_MAX_CHUNKS = int(os.getenv('RAG_MAX_CHUNKS', '3'))
+RAG_MAX_CHUNKS = int(os.getenv('RAG_MAX_CHUNKS', '5'))
 
 # LLM сервис (инициализируется при первом использовании)
 llm_service = None

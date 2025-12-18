@@ -106,7 +106,7 @@ RAG_TEMPERATURE=0.3
 RAG_MIN_RELEVANCE_SCORE=45.0
 
 # Максимальное количество документов для контекста RAG
-RAG_MAX_CHUNKS=3
+RAG_MAX_CHUNKS=5
 ```
 
 **Рекомендуемые модели:**
