@@ -1234,6 +1234,80 @@ def get_logs_statistics():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@admin_bp.route('/api/logs/rag-statistics', methods=['GET'])
+@require_auth_in_production
+@check_bitrix24_role('observer')
+def get_rag_statistics():
+    """
+    Получение статистики RAG генерации
+
+    Returns:
+        {
+            "total_rag_answers": 150,
+            "avg_tokens_per_answer": 245.3,
+            "total_tokens_used": 36795,
+            "rag_errors": 3,
+            "rag_success_rate": 98.0,
+            "models_used": {
+                "openai/gpt-4o-mini": 145,
+                "openai/gpt-4o": 5
+            },
+            "avg_chunks_per_query": 2.8,
+            "avg_generation_time_ms": 1250
+        }
+    """
+    try:
+        with database.get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Основная статистика
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total_rag,
+                    AVG(tokens_total) as avg_tokens,
+                    SUM(tokens_total) as total_tokens,
+                    AVG(chunks_used) as avg_chunks,
+                    AVG(generation_time_ms) as avg_gen_time,
+                    COUNT(CASE WHEN error_message IS NOT NULL THEN 1 END) as errors
+                FROM llm_generations
+                WHERE answer_log_id IN (
+                    SELECT id FROM answer_logs WHERE period_id IS NULL
+                )
+            """)
+
+            stats = cursor.fetchone()
+
+            # Статистика по моделям
+            cursor.execute("""
+                SELECT model, COUNT(*) as count
+                FROM llm_generations
+                WHERE answer_log_id IN (
+                    SELECT id FROM answer_logs WHERE period_id IS NULL
+                )
+                GROUP BY model
+            """)
+
+            models = {row['model']: row['count'] for row in cursor.fetchall()}
+
+            total_rag = stats['total_rag'] or 0
+            errors = stats['errors'] or 0
+
+            return jsonify({
+                'total_rag_answers': total_rag,
+                'avg_tokens_per_answer': round(stats['avg_tokens'] or 0, 1),
+                'total_tokens_used': stats['total_tokens'] or 0,
+                'rag_errors': errors,
+                'rag_success_rate': round((total_rag - errors) / total_rag * 100, 1) if total_rag > 0 else 0,
+                'models_used': models,
+                'avg_chunks_per_query': round(stats['avg_chunks'] or 0, 1),
+                'avg_generation_time_ms': round(stats['avg_gen_time'] or 0)
+            })
+
+    except Exception as e:
+        logger.error(f"Ошибка получения RAG статистики: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @admin_bp.route('/api/logs/export', methods=['GET'])
 def export_logs():
     """

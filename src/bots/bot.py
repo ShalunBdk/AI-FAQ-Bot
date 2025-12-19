@@ -422,6 +422,42 @@ def find_best_match(query_text: str, n_results: int = 3):
     logger.info(f"Найдено результатов: {len(results['documents'][0])}, лучший score: {similarity:.1f}%")
     return best_meta, similarity, results
 
+
+def is_rag_no_answer(answer_text: str, metadata: dict) -> bool:
+    """
+    Определяет, является ли RAG ответ фактическим "no answer"
+
+    Проверяет:
+    1. Наличие error в metadata
+    2. Ключевые фразы "no answer" в тексте ответа
+
+    Returns:
+        True если RAG не смог дать ответ
+    """
+    # Проверка 1: Error в metadata
+    if metadata and 'error' in metadata:
+        return True
+
+    # Проверка 2: Ключевые фразы
+    no_answer_patterns = [
+        'к сожалению',
+        'не нашел информации',
+        'не нашёл информации',
+        'нет информации',
+        'не знаю',
+        'не могу ответить',
+        'информации нет',
+        'в базе знаний нет'
+    ]
+
+    answer_lower = answer_text.lower()
+    for pattern in no_answer_patterns:
+        if pattern in answer_lower:
+            return True
+
+    return False
+
+
 # ---------- БОТ: хендлеры ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем, не спит ли бот
@@ -535,6 +571,7 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             final_answer = result.answer
             rag_metadata = None
             is_rag_generated = False  # Флаг для отслеживания RAG генерации
+            llm_chunks_data = []  # Для логирования chunks
 
             if RAG_ENABLED and result.confidence >= RAG_MIN_RELEVANCE_SCORE:
                 try:
@@ -556,6 +593,12 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                             'answer': alt['answer'],
                                             'confidence': alt['confidence']
                                         })
+                                        # Сохраняем для логирования
+                                        llm_chunks_data.append({
+                                            'faq_id': alt.get('faq_id'),
+                                            'question': alt['question'],
+                                            'confidence': alt['confidence']
+                                        })
                                         logger.debug(f"  [{len(db_chunks)}] {alt['question'][:50]}... ({alt['confidence']:.1f}%)")
                             except Exception as e:
                                 logger.warning(f"Ошибка при добавлении альтернативных chunks: {e}")
@@ -566,6 +609,12 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 'answer': result.answer,
                                 'confidence': result.confidence
                             })
+                            # Сохраняем для логирования
+                            llm_chunks_data.append({
+                                'faq_id': result.faq_id,
+                                'question': result.question,
+                                'confidence': result.confidence
+                            })
 
                         # ПРИОРИТЕТ 2: Добавляем дополнительные результаты из semantic search (если нет alternatives)
                         if not result.alternatives and result.search_level == 'semantic' and result.all_results:
@@ -574,15 +623,25 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     dist = result.all_results["distances"][0][i]
                                     sim = max(0.0, 1.0 - dist) * 100.0
                                     if sim >= RAG_MIN_RELEVANCE_SCORE:
+                                        metadata = result.all_results["metadatas"][0][i]
                                         db_chunks.append({
-                                            'question': result.all_results["metadatas"][0][i]["question"],
-                                            'answer': result.all_results["metadatas"][0][i]["answer"],
+                                            'question': metadata["question"],
+                                            'answer': metadata["answer"],
+                                            'confidence': sim
+                                        })
+                                        # Сохраняем для логирования
+                                        llm_chunks_data.append({
+                                            'faq_id': metadata.get("id"),
+                                            'question': metadata["question"],
                                             'confidence': sim
                                         })
                             except Exception as e:
                                 logger.warning(f"Ошибка при добавлении дополнительных chunks: {e}")
 
                         logger.debug(f"Подготовлено {len(db_chunks)} chunks для RAG")
+
+                        # Засекаем время
+                        start_time = time.time()
 
                         # Генерируем ответ через LLM
                         rag_answer, rag_metadata = service.generate_answer(
@@ -592,18 +651,47 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             temperature=RAG_TEMPERATURE
                         )
 
+                        # Вычисляем latency
+                        generation_time_ms = int((time.time() - start_time) * 1000)
+
                         # Используем сгенерированный ответ
                         if rag_answer and 'error' not in rag_metadata:
                             final_answer = rag_answer
                             is_rag_generated = True  # Помечаем что ответ от RAG
+                            rag_metadata['generation_time_ms'] = generation_time_ms
+                            rag_metadata['chunks_data'] = llm_chunks_data
                             logger.info(f"✅ RAG ответ сгенерирован. Токенов: {rag_metadata.get('tokens_used', {}).get('total', 'N/A')}")
+
+                            # Проверяем, является ли это фактическим "no answer"
+                            if is_rag_no_answer(rag_answer, rag_metadata):
+                                logger.info("RAG вернул 'no answer', помечаем как search_level='none'")
+                                # Создаем новый SearchResult для правильной статистики
+                                from src.core.search import SearchResult
+                                result = SearchResult(
+                                    found=False,
+                                    faq_id=None,
+                                    question='',
+                                    answer=final_answer,
+                                    confidence=0.0,
+                                    search_level='none',
+                                    message=final_answer
+                                )
                         else:
                             logger.warning("RAG генерация вернула ошибку, используем обычный ответ")
+                            # Сохраняем ошибку для логирования
+                            rag_metadata['generation_time_ms'] = generation_time_ms
+                            rag_metadata['chunks_data'] = llm_chunks_data
 
                 except Exception as e:
                     logger.error(f"❌ Ошибка RAG генерации: {e}", exc_info=True)
                     # Fallback на обычный ответ
                     logger.info("Используем обычный ответ из базы данных")
+                    # Сохраняем ошибку для логирования
+                    rag_metadata = {
+                        'error': str(e),
+                        'generation_time_ms': 0,
+                        'chunks_data': llm_chunks_data
+                    }
 
             # Логируем показанный ответ (реальный ответ, который будет показан пользователю)
             answer_log_id = None
@@ -615,6 +703,22 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     answer_shown=final_answer,  # Логируем финальный ответ (RAG или обычный)
                     search_level=result.search_level
                 )
+
+                # Логируем RAG метаданные (если были)
+                if answer_log_id and rag_metadata and is_rag_generated:
+                    database.add_llm_generation_log(
+                        answer_log_id=answer_log_id,
+                        model=rag_metadata.get('model', 'unknown'),
+                        chunks_used=rag_metadata.get('chunks_used', 0),
+                        chunks_data=rag_metadata.get('chunks_data', []),
+                        pii_detected=rag_metadata.get('pii_found', 0),
+                        tokens_prompt=rag_metadata.get('tokens_used', {}).get('prompt', 0),
+                        tokens_completion=rag_metadata.get('tokens_used', {}).get('completion', 0),
+                        tokens_total=rag_metadata.get('tokens_used', {}).get('total', 0),
+                        finish_reason=rag_metadata.get('finish_reason', 'unknown'),
+                        generation_time_ms=rag_metadata.get('generation_time_ms', 0),
+                        error_message=rag_metadata.get('error')
+                    )
 
             # Формируем ответ
             # При RAG генерации не показываем заголовок одного FAQ (ответ объединенный из нескольких)

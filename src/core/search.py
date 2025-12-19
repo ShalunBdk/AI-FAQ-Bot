@@ -463,7 +463,7 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
             # Логируем топ-3 для отладки
             if len(candidates) > 1:
                 logger.debug(f"  [Keyword Search] Топ-3 результатов:")
-                for i, candidate in enumerate(candidates[:3], 1):
+                for i, candidate in enumerate(candidates[:5], 1):
                     logger.debug(f"    {i}. [{candidate['confidence']:.1f}%] {candidate['question'][:50]}... (q_matches={candidate['question_matches']})")
 
             # Проверяем на disambiguation (разница < 7% между топ-2)
@@ -476,8 +476,8 @@ def find_by_keywords(query_text: str, max_query_words: int = 5, threshold: float
 
                 if confidence_diff < 7.0:
                     ambiguous = True
-                    # Собираем близкие альтернативы (макс 3, разница < 12%)
-                    for candidate in candidates[:3]:  # Ограничиваем 3 максимум
+                    # Собираем близкие альтернативы (макс 5, разница < 12%)
+                    for candidate in candidates[:5]:  # Ограничиваем 5 максимум
                         if best['confidence'] - candidate['confidence'] < 12.0:
                             alternatives.append(candidate)
                     logger.debug(f"  [Keyword Search] Обнаружена неоднозначность! Альтернатив: {len(alternatives)}")
