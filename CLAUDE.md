@@ -1,5 +1,7 @@
 # CLAUDE.md - AI Assistant Guide for AI-FAQ-Bot
 
+Не писать md файлы, если об этом не просили.
+
 > **Purpose**: Comprehensive context about the AI-FAQ-Bot codebase for AI assistants.
 
 **Last Updated**: 2025-12-18

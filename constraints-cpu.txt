@@ -1,0 +1,7 @@
+# Constraints для установки PyTorch CPU-only версии
+# Используется в Docker для экономии ~700 MB
+
+# PyTorch CPU-only (вместо CUDA ~900MB используем CPU ~200MB)
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu
+torchaudio==2.5.1+cpu

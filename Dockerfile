@@ -15,23 +15,18 @@ RUN apt-get update && apt-get install -y \
     fonts-dejavu-extra \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем requirements.txt и устанавливаем Python зависимости
-COPY requirements.txt .
+# Копируем requirements и constraints
+COPY requirements.txt constraints-cpu.txt ./
 
 # Обновляем pip, setuptools и wheel
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# ВАЖНО: Устанавливаем PyTorch CPU-only версию (экономит ~700 MB)
-# Используем --index-url для явного указания CPU репозитория
+# Устанавливаем все зависимости с constraints для CPU версии PyTorch
+# Это заставит pip установить CPU версию вместо CUDA (~700 MB экономии)
 RUN pip install --no-cache-dir \
-    torch \
-    torchvision \
-    torchaudio \
-    --index-url https://download.pytorch.org/whl/cpu
-
-# Затем устанавливаем остальные зависимости из основного PyPI
-# sentence-transformers будет использовать уже установленный CPU PyTorch
-RUN pip install --no-cache-dir -r requirements.txt
+    -c constraints-cpu.txt \
+    -r requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Копируем все файлы проекта
 COPY . .
