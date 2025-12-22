@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from src.core import database
 from src.core import logging_config
 from src.core.search import find_answer
+from src.core.llm_service import LLMService
 
 # Загружаем переменные окружения из .env
 load_dotenv()
@@ -193,6 +194,29 @@ bot_is_sleeping = False
 sleep_until = None
 timeout_errors_count = 0
 last_error_time = None
+
+# RAG настройки
+RAG_ENABLED = os.getenv('RAG_ENABLED', 'true').lower() == 'true'
+RAG_MAX_TOKENS = int(os.getenv('RAG_MAX_TOKENS', '1024'))
+RAG_TEMPERATURE = float(os.getenv('RAG_TEMPERATURE', '0.3'))
+RAG_MIN_RELEVANCE_SCORE = float(os.getenv('RAG_MIN_RELEVANCE_SCORE', '45.0'))
+RAG_MAX_CHUNKS = int(os.getenv('RAG_MAX_CHUNKS', '5'))
+
+# LLM сервис (инициализируется при первом использовании)
+llm_service = None
+
+def get_llm_service():
+    """Ленивая инициализация LLM сервиса"""
+    global llm_service
+    if llm_service is None and RAG_ENABLED:
+        try:
+            llm_service = LLMService()
+            logger.info("✅ LLM сервис инициализирован")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации LLM сервиса: {e}")
+            # Не падаем, просто отключаем RAG
+            return None
+    return llm_service
 
 # User-level rate limiting
 user_last_action = {}  # {user_id: timestamp}
@@ -398,6 +422,72 @@ def find_best_match(query_text: str, n_results: int = 3):
     logger.info(f"Найдено результатов: {len(results['documents'][0])}, лучший score: {similarity:.1f}%")
     return best_meta, similarity, results
 
+
+def is_rag_clarification(answer_text: str) -> bool:
+    """
+    Определяет, является ли RAG ответ просьбой уточнить вопрос
+
+    Проверяет ключевые фразы, которые RAG использует когда вопрос слишком широкий
+
+    Returns:
+        True если RAG просит уточнить
+    """
+    clarification_patterns = [
+        'уточните',
+        'уточнить',
+        'пожалуйста, уточните',
+        'какой именно',
+        'что именно',
+        'конкретнее',
+        'например:',
+        'вас интересует'
+    ]
+
+    answer_lower = answer_text.lower()
+    for pattern in clarification_patterns:
+        if pattern in answer_lower:
+            return True
+
+    return False
+
+
+def is_rag_no_answer(answer_text: str, metadata: dict) -> bool:
+    """
+    Определяет, является ли RAG ответ фактическим "no answer"
+
+    Проверяет:
+    1. Наличие error в metadata
+    2. Ключевые фразы "no answer" в тексте ответа
+
+    Returns:
+        True если RAG не смог дать ответ
+    """
+    # Проверка 1: Error в metadata
+    if metadata and 'error' in metadata:
+        return True
+
+    # Проверка 2: Ключевые фразы "no answer"
+    no_answer_patterns = [
+        'к сожалению',
+        'не нашел информации',
+        'не нашёл информации',
+        'нет информации',
+        'не знаю',
+        'не могу ответить',
+        'информации нет',
+        'в базе знаний нет',
+        'извините',
+        'я не знаю'
+    ]
+
+    answer_lower = answer_text.lower()
+    for pattern in no_answer_patterns:
+        if pattern in answer_lower:
+            return True
+
+    return False
+
+
 # ---------- БОТ: хендлеры ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем, не спит ли бот
@@ -464,7 +554,9 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if result.found:
             # Проверяем на неоднозначность (disambiguation)
-            if result.ambiguous and result.alternatives:
+            # ВАЖНО: При включенном RAG используем лучший результат без disambiguation
+            # RAG может объединить информацию из нескольких FAQ и дать более качественный ответ
+            if result.ambiguous and result.alternatives and not RAG_ENABLED:
                 logger.info(f"⚠️ Обнаружена неоднозначность! Найдено {len(result.alternatives)} альтернатив")
 
                 # Логируем показ вариантов (с процентами confidence)
@@ -499,23 +591,186 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
                 return
+            elif result.ambiguous and result.alternatives and RAG_ENABLED:
+                logger.info(f"⚠️ Неоднозначность обнаружена, но RAG включен - используем лучший результат + контекст из {len(result.alternatives)} альтернатив")
 
             # Нашли однозначный ответ!
             logger.info(f"✅ Ответ найден через {result.search_level} (confidence: {result.confidence:.1f}%)")
 
-            # Логируем показанный ответ
+            # === RAG ГЕНЕРАЦИЯ (если включена) ===
+            final_answer = result.answer
+            rag_metadata = None
+            is_rag_generated = False  # Флаг для отслеживания RAG генерации
+            llm_chunks_data = []  # Для логирования chunks
+
+            if RAG_ENABLED and result.confidence >= RAG_MIN_RELEVANCE_SCORE:
+                try:
+                    logger.info("🤖 Запуск RAG генерации...")
+                    service = get_llm_service()
+
+                    if service:
+                        # Подготавливаем chunks для LLM
+                        db_chunks = []
+
+                        # ПРИОРИТЕТ 1: Если есть alternatives (несколько похожих FAQ) - используем их ВСЕ
+                        if result.alternatives and len(result.alternatives) > 0:
+                            try:
+                                logger.debug(f"  Используем {len(result.alternatives)} альтернативных FAQ для контекста")
+                                for alt in result.alternatives[:RAG_MAX_CHUNKS]:  # Берем ВСЕ альтернативы (до max)
+                                    if alt['confidence'] >= RAG_MIN_RELEVANCE_SCORE:
+                                        db_chunks.append({
+                                            'question': alt['question'],
+                                            'answer': alt['answer'],
+                                            'confidence': alt['confidence']
+                                        })
+                                        # Сохраняем для логирования
+                                        llm_chunks_data.append({
+                                            'faq_id': alt.get('faq_id'),
+                                            'question': alt['question'],
+                                            'confidence': alt['confidence']
+                                        })
+                                        logger.debug(f"  [{len(db_chunks)}] {alt['question'][:50]}... ({alt['confidence']:.1f}%)")
+                            except Exception as e:
+                                logger.warning(f"Ошибка при добавлении альтернативных chunks: {e}")
+                        else:
+                            # Если alternatives нет - добавляем только основной результат
+                            db_chunks.append({
+                                'question': result.question,
+                                'answer': result.answer,
+                                'confidence': result.confidence
+                            })
+                            # Сохраняем для логирования
+                            llm_chunks_data.append({
+                                'faq_id': result.faq_id,
+                                'question': result.question,
+                                'confidence': result.confidence
+                            })
+
+                        # ПРИОРИТЕТ 2: Добавляем дополнительные результаты из semantic search (если нет alternatives)
+                        if not result.alternatives and result.search_level == 'semantic' and result.all_results:
+                            try:
+                                for i in range(1, min(RAG_MAX_CHUNKS, len(result.all_results["documents"][0]))):
+                                    dist = result.all_results["distances"][0][i]
+                                    sim = max(0.0, 1.0 - dist) * 100.0
+                                    if sim >= RAG_MIN_RELEVANCE_SCORE:
+                                        metadata = result.all_results["metadatas"][0][i]
+                                        db_chunks.append({
+                                            'question': metadata["question"],
+                                            'answer': metadata["answer"],
+                                            'confidence': sim
+                                        })
+                                        # Сохраняем для логирования
+                                        llm_chunks_data.append({
+                                            'faq_id': metadata.get("id"),
+                                            'question': metadata["question"],
+                                            'confidence': sim
+                                        })
+                            except Exception as e:
+                                logger.warning(f"Ошибка при добавлении дополнительных chunks: {e}")
+
+                        logger.debug(f"Подготовлено {len(db_chunks)} chunks для RAG")
+
+                        # Засекаем время
+                        start_time = time.time()
+
+                        # Генерируем ответ через LLM
+                        rag_answer, rag_metadata = service.generate_answer(
+                            user_question=query,
+                            db_chunks=db_chunks,
+                            max_tokens=RAG_MAX_TOKENS,
+                            temperature=RAG_TEMPERATURE
+                        )
+
+                        # Вычисляем latency
+                        generation_time_ms = int((time.time() - start_time) * 1000)
+
+                        # Используем сгенерированный ответ
+                        if rag_answer and 'error' not in rag_metadata:
+                            final_answer = rag_answer
+                            is_rag_generated = True  # Помечаем что ответ от RAG
+                            rag_metadata['generation_time_ms'] = generation_time_ms
+                            rag_metadata['chunks_data'] = llm_chunks_data
+                            logger.info(f"✅ RAG ответ сгенерирован. Токенов: {rag_metadata.get('tokens_used', {}).get('total', 'N/A')}")
+
+                            # Проверяем тип RAG ответа
+                            # 1. Проверяем, является ли это просьбой уточнить (приоритет выше)
+                            if is_rag_clarification(rag_answer):
+                                logger.info("RAG просит уточнить вопрос, помечаем как search_level='clarification'")
+                                from src.core.search import SearchResult
+                                result = SearchResult(
+                                    found=False,
+                                    faq_id=None,
+                                    question='',
+                                    answer=final_answer,
+                                    confidence=0.0,
+                                    search_level='clarification',
+                                    all_results=None,
+                                    message=final_answer
+                                )
+                            # 2. Проверяем, является ли это фактическим "no answer"
+                            elif is_rag_no_answer(rag_answer, rag_metadata):
+                                logger.info("RAG вернул 'no answer', помечаем как search_level='no_answer'")
+                                from src.core.search import SearchResult
+                                result = SearchResult(
+                                    found=False,
+                                    faq_id=None,
+                                    question='',
+                                    answer=final_answer,
+                                    confidence=0.0,
+                                    search_level='no_answer',
+                                    all_results=None,
+                                    message=final_answer
+                                )
+                        else:
+                            logger.warning("RAG генерация вернула ошибку, используем обычный ответ")
+                            # Сохраняем ошибку для логирования
+                            rag_metadata['generation_time_ms'] = generation_time_ms
+                            rag_metadata['chunks_data'] = llm_chunks_data
+
+                except Exception as e:
+                    logger.error(f"❌ Ошибка RAG генерации: {e}", exc_info=True)
+                    # Fallback на обычный ответ
+                    logger.info("Используем обычный ответ из базы данных")
+                    # Сохраняем ошибку для логирования
+                    rag_metadata = {
+                        'error': str(e),
+                        'generation_time_ms': 0,
+                        'chunks_data': llm_chunks_data
+                    }
+
+            # Логируем показанный ответ (реальный ответ, который будет показан пользователю)
             answer_log_id = None
             if query_log_id:
                 answer_log_id = database.add_answer_log(
                     query_log_id=query_log_id,
                     faq_id=result.faq_id,
                     similarity_score=result.confidence,
-                    answer_shown=result.answer,
+                    answer_shown=final_answer,  # Логируем финальный ответ (RAG или обычный)
                     search_level=result.search_level
                 )
 
+                # Логируем RAG метаданные (если были)
+                if answer_log_id and rag_metadata and is_rag_generated:
+                    database.add_llm_generation_log(
+                        answer_log_id=answer_log_id,
+                        model=rag_metadata.get('model', 'unknown'),
+                        chunks_used=rag_metadata.get('chunks_used', 0),
+                        chunks_data=rag_metadata.get('chunks_data', []),
+                        pii_detected=rag_metadata.get('pii_found', 0),
+                        tokens_prompt=rag_metadata.get('tokens_used', {}).get('prompt', 0),
+                        tokens_completion=rag_metadata.get('tokens_used', {}).get('completion', 0),
+                        tokens_total=rag_metadata.get('tokens_used', {}).get('total', 0),
+                        finish_reason=rag_metadata.get('finish_reason', 'unknown'),
+                        generation_time_ms=rag_metadata.get('generation_time_ms', 0),
+                        error_message=rag_metadata.get('error')
+                    )
+
             # Формируем ответ
-            response = f"<b>{result.question}</b>\n\n{result.answer}"
+            # При RAG генерации не показываем заголовок одного FAQ (ответ объединенный из нескольких)
+            if is_rag_generated:
+                response = final_answer  # Только ответ, без заголовка
+            else:
+                response = f"<b>{result.question}</b>\n\n{final_answer}"
 
             # Добавляем процент схожести если включено в настройках
             show_similarity = bot_settings_cache.get("show_similarity", "true") == "true"

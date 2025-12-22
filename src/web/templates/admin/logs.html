@@ -120,6 +120,10 @@
                                     <span class="text-sm text-gray-700 dark:text-gray-300">Ответ</span>
                                 </label>
                                 <label class="flex items-center gap-2 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 px-2 rounded">
+                                    <input type="checkbox" id="col-search_level" onchange="toggleColumn('search_level')" class="w-4 h-4 text-primary rounded" checked>
+                                    <span class="text-sm text-gray-700 dark:text-gray-300">Уровень поиска</span>
+                                </label>
+                                <label class="flex items-center gap-2 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 px-2 rounded">
                                     <input type="checkbox" id="col-similarity" onchange="toggleColumn('similarity')" class="w-4 h-4 text-primary rounded" checked>
                                     <span class="text-sm text-gray-700 dark:text-gray-300">Точность</span>
                                 </label>
@@ -165,7 +169,33 @@
                 </div>
             </div>
 
-            
+            <!-- RAG Statistics Card -->
+            <div id="rag-stats-section" class="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl shadow-md border border-indigo-200 dark:border-indigo-800 p-6 mb-6" style="display: none;">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400">smart_toy</span>
+                    <h2 class="text-indigo-900 dark:text-indigo-100 text-xl font-bold">RAG Generation Statistics</h2>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="text-center">
+                        <h3 id="rag-total-answers" class="text-indigo-600 dark:text-indigo-400 text-2xl font-bold mb-1">-</h3>
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">Ответов с RAG</p>
+                    </div>
+                    <div class="text-center">
+                        <h3 id="rag-total-tokens" class="text-indigo-600 dark:text-indigo-400 text-2xl font-bold mb-1">-</h3>
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">Всего токенов</p>
+                    </div>
+                    <div class="text-center">
+                        <h3 id="rag-success-rate" class="text-green-600 dark:text-green-400 text-2xl font-bold mb-1">-%</h3>
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">Success Rate</p>
+                    </div>
+                    <div class="text-center">
+                        <h3 id="rag-avg-gen-time" class="text-indigo-600 dark:text-indigo-400 text-2xl font-bold mb-1">- ms</h3>
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">Среднее время</p>
+                    </div>
+                </div>
+            </div>
+
+
             <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-gray-800 dark:text-white text-xl font-bold">Фильтры</h2>
@@ -243,6 +273,7 @@
                                 <th class="px-6 py-3" data-column="platform">Платформа</th>
                                 <th class="px-6 py-3" data-column="question">Вопрос</th>
                                 <th class="px-6 py-3" data-column="answer">Ответ</th>
+                                <th class="px-6 py-3 text-center" data-column="search_level">Уровень поиска</th>
                                 <th class="px-6 py-3 text-center" data-column="similarity">Точность</th>
                                 <th class="px-6 py-3 text-center" data-column="rating">Оценка</th>
                             </tr>
@@ -277,6 +308,57 @@
     </main>
 </div>
 
+<!-- Template для RAG детали -->
+<template id="rag-details-template">
+    <tr class="rag-details-row bg-gray-50 dark:bg-gray-800/50">
+        <td colspan="8" class="px-6 py-4">
+            <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                <!-- Header -->
+                <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-2">
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white">🤖 RAG Generation Details</h4>
+                    <button class="close-rag-details text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <span class="material-symbols-outlined text-sm">close</span>
+                    </button>
+                </div>
+
+                <!-- Metadata Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Model</span>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white rag-model">-</p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Tokens (Prompt / Completion)</span>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white rag-tokens">-</p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">PII Detected</span>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white rag-pii">-</p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Generation Time</span>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white rag-gen-time">-</p>
+                    </div>
+                </div>
+
+                <!-- Chunks Used -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-3">
+                    <span class="text-xs text-gray-500 dark:text-gray-400 block mb-2">FAQ Chunks Used in Context:</span>
+                    <div class="rag-chunks space-y-1">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Error (if any) -->
+                <div class="rag-error-section hidden border-t border-gray-200 dark:border-gray-700 pt-3">
+                    <span class="text-xs text-red-600 dark:text-red-400 block mb-1">Error:</span>
+                    <p class="text-sm text-red-700 dark:text-red-500 rag-error-message">-</p>
+                </div>
+            </div>
+        </td>
+    </tr>
+</template>
+
 <script>
     // Базовый URL для API запросов (с учетом BASE_PATH для reverse proxy)
     const BASE_URL = '{{ config.get("BASE_PATH", "") }}/admin';
@@ -292,6 +374,7 @@
         platform: false,
         question: true,
         answer: true,
+        search_level: true,
         similarity: true,
         rating: true
     };
@@ -393,6 +476,13 @@
         }
     }
 
+    function toggleAnswerText(answerId) {
+        const answerDiv = document.getElementById(`answer-text-${answerId}`);
+        if (answerDiv) {
+            answerDiv.classList.toggle('hidden');
+        }
+    }
+
     // Загрузка статистики
     async function loadStatistics() {
         try {
@@ -411,6 +501,28 @@
                 if (stats.similarity_threshold) {
                     similarityThreshold = stats.similarity_threshold;
                 }
+            }
+
+            // Загрузка RAG статистики
+            try {
+                const ragResponse = await fetchWithAuth(`${BASE_URL}/api/logs/rag-statistics`);
+                if (ragResponse.ok) {
+                    const ragData = await ragResponse.json();
+
+                    // Показываем секцию только если есть RAG ответы
+                    if (ragData.total_rag_answers > 0) {
+                        document.getElementById('rag-stats-section').style.display = 'block';
+                        document.getElementById('rag-total-answers').textContent = ragData.total_rag_answers;
+                        document.getElementById('rag-total-tokens').textContent = ragData.total_tokens_used.toLocaleString();
+                        document.getElementById('rag-success-rate').textContent = `${ragData.rag_success_rate}%`;
+                        document.getElementById('rag-avg-gen-time').textContent = `${ragData.avg_generation_time_ms} ms`;
+                    } else {
+                        document.getElementById('rag-stats-section').style.display = 'none';
+                    }
+                }
+            } catch (ragError) {
+                console.error('Ошибка загрузки RAG статистики:', ragError);
+                document.getElementById('rag-stats-section').style.display = 'none';
             }
         } catch (error) {
             console.error("Ошибка загрузки статистики:", error);
@@ -449,6 +561,30 @@
         }
     }
 
+    // Получить badge для уровня поиска
+    function getSearchLevelBadge(searchLevel, llmMetadata) {
+        const badges = {
+            'exact': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">🎯 Exact</span>',
+            'keyword': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">🔑 Keyword</span>',
+            'semantic': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300">🧠 Semantic</span>',
+            'disambiguation_shown': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300">🔀 Варианты</span>',
+            'disambiguation': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300">✅ Выбор</span>',
+            'direct': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">📄 Direct</span>',
+            'clarification': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300">❓ Уточнение</span>',
+            'no_answer': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">🚫 Не найдено</span>',
+            'none': '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">❌ None</span>'
+        };
+
+        let badge = badges[searchLevel] || badges['none'];
+
+        // Добавляем RAG badge если есть LLM metadata
+        if (llmMetadata && llmMetadata.id) {
+            badge += ' <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">🤖 RAG</span>';
+        }
+
+        return badge;
+    }
+
     // Отображение логов в таблице
     function displayLogs(logs) {
         const tbody = document.getElementById("logs-tbody");
@@ -482,11 +618,25 @@
             const row = document.createElement("tr");
             const uniqueId = `${log.query_id}_${log.answer_log_id || logIndex}`; // Уникальный ID для каждой строки
 
-            // Исключаем disambiguation из "нет ответа" - это не ошибка, а уточнение
-            const isDisambiguation = ['disambiguation_shown', 'disambiguation'].includes(log.search_level);
-            const noAnswer = (!log.faq_id || (log.similarity_score && log.similarity_score < similarityThreshold)) && !isDisambiguation;
+            // Определяем "нет ответа":
+            // - 'none': ответ не найден вообще (из базы данных)
+            // - 'no_answer': RAG не нашел информации
+            // Исключаем из "нет ответа":
+            // - 'disambiguation_shown', 'disambiguation': это уточнение, не ошибка
+            // - 'clarification': RAG просит уточнить вопрос (слишком широкий запрос)
+            const isClarificationOrDisambiguation = ['disambiguation_shown', 'disambiguation', 'clarification'].includes(log.search_level);
+            const isExplicitNoAnswer = ['none', 'no_answer'].includes(log.search_level);
+            const noAnswer = (isExplicitNoAnswer || (!log.faq_id || (log.similarity_score && log.similarity_score < similarityThreshold))) && !isClarificationOrDisambiguation;
 
             row.className = "border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors";
+            row.dataset.queryId = log.query_id;
+            row.dataset.answerLogId = log.answer_log_id || logIndex;
+
+            // Сохраняем llm_metadata в глобальное хранилище
+            if (log.llm_metadata && log.llm_metadata.id) {
+                const key = `${log.query_id}_${log.answer_log_id || logIndex}`;
+                ragMetadataStore[key] = log.llm_metadata;
+            }
 
             if (noAnswer) {
                 row.classList.add("bg-orange-50/50", "dark:bg-orange-500/10");
@@ -562,9 +712,55 @@
                             </div>
                         </div>` :
                         log.faq_question ? `
-                            <div class="max-w-xs truncate text-gray-800 dark:text-gray-200" title="${log.faq_question}">${log.faq_question}</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">${log.category || ""}</div>
+                            <div>
+                                <div class="max-w-xs truncate text-gray-800 dark:text-gray-200" title="${log.faq_question}">${log.faq_question}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">${log.category || ""}</div>
+                                ${log.answer_shown ? `
+                                    <button onclick="toggleAnswerText('${uniqueId}')"
+                                            class="mt-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer flex items-center gap-1">
+                                        <span class="material-symbols-outlined" style="font-size: 14px;">visibility</span>
+                                        <span>Показать ответ</span>
+                                    </button>
+                                    <div id="answer-text-${uniqueId}" class="hidden mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 max-w-md">
+                                        <div class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                            ${log.llm_metadata && log.llm_metadata.id ? '🤖 RAG Ответ:' : '📝 Ответ пользователю:'}
+                                        </div>
+                                        <div class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">${escapeHtml(log.answer_shown)}</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        ` : log.answer_shown ? `
+                            <div>
+                                <div class="text-sm text-gray-700 dark:text-gray-300 italic">
+                                    ${log.search_level === 'clarification' ? '❓ Просьба уточнить' :
+                                      log.search_level === 'no_answer' ? '🚫 Информация не найдена' :
+                                      '❌ Ответ не найден'}
+                                </div>
+                                <button onclick="toggleAnswerText('${uniqueId}')"
+                                        class="mt-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer flex items-center gap-1">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">visibility</span>
+                                    <span>Показать текст</span>
+                                </button>
+                                <div id="answer-text-${uniqueId}" class="hidden mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 max-w-md">
+                                    <div class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                        ${log.llm_metadata && log.llm_metadata.id ? '🤖 RAG Ответ:' : '📝 Текст ответа:'}
+                                    </div>
+                                    <div class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">${escapeHtml(log.answer_shown)}</div>
+                                </div>
+                            </div>
                         ` : '<span class="text-red-600 dark:text-red-400 font-semibold text-sm">❌ Ответ не найден</span>'}
+                </td>
+                <td class="px-6 py-4 text-center" data-column="search_level">
+                    <div class="flex items-center justify-center gap-1">
+                        ${getSearchLevelBadge(log.search_level, log.llm_metadata)}
+                        ${log.llm_metadata && log.llm_metadata.id ? `
+                            <button onclick="toggleRagDetails(${log.query_id}, ${log.answer_log_id || logIndex})"
+                                    class="ml-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer"
+                                    title="Показать RAG детали">
+                                <span class="material-symbols-outlined text-sm">info</span>
+                            </button>
+                        ` : ''}
+                    </div>
                 </td>
                 <td class="px-6 py-4 text-center" data-column="similarity">
                     <span class="font-bold ${scoreClass}">${score.toFixed(1)}%</span>
@@ -673,6 +869,86 @@
         document.getElementById("filter-date-to").value = "";
         applyFilters();
         document.getElementById("table-container").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // Глобальное хранилище для LLM metadata
+    const ragMetadataStore = {};
+
+    // Toggle RAG Details
+    function toggleRagDetails(queryId, answerLogId) {
+        const detailsRowId = `rag-details-${queryId}-${answerLogId}`;
+        let existingRow = document.getElementById(detailsRowId);
+
+        // Если уже раскрыто - закрываем
+        if (existingRow) {
+            existingRow.remove();
+            return;
+        }
+
+        // Получаем llm_metadata из хранилища
+        const key = `${queryId}_${answerLogId}`;
+        const llmMetadata = ragMetadataStore[key];
+
+        if (!llmMetadata) {
+            console.error('LLM metadata not found for', key);
+            return;
+        }
+
+        // Клонируем template
+        const template = document.getElementById('rag-details-template');
+        const detailsRow = template.content.cloneNode(true);
+        const tr = detailsRow.querySelector('tr');
+        tr.id = detailsRowId;
+
+        // Заполняем данные
+        tr.querySelector('.rag-model').textContent = llmMetadata.model || 'N/A';
+        tr.querySelector('.rag-tokens').textContent =
+            `${llmMetadata.tokens.prompt} / ${llmMetadata.tokens.completion} (Total: ${llmMetadata.tokens.total})`;
+        tr.querySelector('.rag-pii').textContent = llmMetadata.pii_detected || 0;
+        tr.querySelector('.rag-gen-time').textContent = `${llmMetadata.generation_time_ms} ms`;
+
+        // Chunks
+        const chunksContainer = tr.querySelector('.rag-chunks');
+        if (llmMetadata.chunks_data && llmMetadata.chunks_data.length > 0) {
+            llmMetadata.chunks_data.forEach((chunk, idx) => {
+                const chunkDiv = document.createElement('div');
+                chunkDiv.className = 'flex items-start space-x-2 text-sm';
+                chunkDiv.innerHTML = `
+                    <span class="text-gray-400 dark:text-gray-500">${idx + 1}.</span>
+                    <span class="flex-1 text-gray-700 dark:text-gray-300">${escapeHtml(chunk.question)}</span>
+                    <span class="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        ${chunk.confidence.toFixed(1)}%
+                    </span>
+                `;
+                chunksContainer.appendChild(chunkDiv);
+            });
+        } else {
+            chunksContainer.innerHTML = '<p class="text-sm text-gray-500 dark:text-gray-400">No chunks data</p>';
+        }
+
+        // Error (if any)
+        if (llmMetadata.error_message) {
+            tr.querySelector('.rag-error-section').classList.remove('hidden');
+            tr.querySelector('.rag-error-message').textContent = llmMetadata.error_message;
+        }
+
+        // Close button
+        tr.querySelector('.close-rag-details').addEventListener('click', () => {
+            document.getElementById(detailsRowId).remove();
+        });
+
+        // Вставляем после текущей строки
+        const currentRow = document.querySelector(`tr[data-query-id="${queryId}"][data-answer-log-id="${answerLogId}"]`);
+        if (currentRow && currentRow.parentNode) {
+            currentRow.parentNode.insertBefore(tr, currentRow.nextSibling);
+        }
+    }
+
+    // Helper function для экранирования HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 </script>
 </body>

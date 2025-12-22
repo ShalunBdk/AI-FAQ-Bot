@@ -158,6 +158,35 @@ def init_database():
             )
         """)
 
+        # Таблица метаданных LLM генерации (RAG)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS llm_generations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                answer_log_id INTEGER NOT NULL,
+
+                -- LLM Metadata
+                model TEXT,
+                chunks_used INTEGER,
+                chunks_data TEXT,
+                pii_detected INTEGER,
+
+                -- Token Usage
+                tokens_prompt INTEGER,
+                tokens_completion INTEGER,
+                tokens_total INTEGER,
+
+                -- Generation Info
+                finish_reason TEXT,
+                generation_time_ms INTEGER,
+                error_message TEXT,
+
+                -- Timestamps
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                FOREIGN KEY (answer_log_id) REFERENCES answer_logs(id)
+            )
+        """)
+
         # Таблица прав доступа для Bitrix24
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS bitrix24_permissions (
@@ -178,6 +207,9 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_platform ON query_logs(platform)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_faq ON answer_logs(faq_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rating_logs_rating ON rating_logs(rating)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_generations_answer_log ON llm_generations(answer_log_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_generations_model ON llm_generations(model)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_generations_error ON llm_generations(error_message)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_domain ON bitrix24_permissions(domain)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_domain_user ON bitrix24_permissions(domain, user_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_role ON bitrix24_permissions(role)")
@@ -531,6 +563,61 @@ def add_rating_log(answer_log_id: int, user_id: int, rating: str) -> bool:
         return False
 
 
+def add_llm_generation_log(
+    answer_log_id: int,
+    model: str,
+    chunks_used: int,
+    chunks_data: List[Dict],
+    pii_detected: int,
+    tokens_prompt: int,
+    tokens_completion: int,
+    tokens_total: int,
+    finish_reason: str,
+    generation_time_ms: int,
+    error_message: Optional[str] = None
+) -> Optional[int]:
+    """
+    Логирование метаданных RAG генерации
+
+    :param answer_log_id: ID записи из answer_logs
+    :param model: Модель LLM (e.g., "openai/gpt-4o-mini")
+    :param chunks_used: Количество FAQ chunks отправленных в контекст
+    :param chunks_data: Список FAQ chunks с их metadata [{"faq_id": "...", "question": "...", "confidence": 85.5}, ...]
+    :param pii_detected: Количество PII сущностей
+    :param tokens_prompt: Токены в промпте
+    :param tokens_completion: Токены в ответе
+    :param tokens_total: Всего токенов
+    :param finish_reason: OpenAI finish reason
+    :param generation_time_ms: Latency в миллисекундах
+    :param error_message: Сообщение об ошибке (если есть)
+    :return: ID llm_generation записи или None при ошибке
+    """
+    try:
+        import json
+
+        # Сериализуем chunks_data в JSON
+        chunks_json = json.dumps(chunks_data, ensure_ascii=False)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO llm_generations (
+                    answer_log_id, model, chunks_used, chunks_data,
+                    pii_detected, tokens_prompt, tokens_completion, tokens_total,
+                    finish_reason, generation_time_ms, error_message
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                answer_log_id, model, chunks_used, chunks_json,
+                pii_detected, tokens_prompt, tokens_completion, tokens_total,
+                finish_reason, generation_time_ms, error_message
+            ))
+            conn.commit()
+            return cursor.lastrowid
+    except Exception as e:
+        logger.error(f"Ошибка добавления LLM generation log: {e}", exc_info=True)
+        return None
+
+
 def get_logs(
     limit: int = 50,
     offset: int = 0,
@@ -582,10 +669,22 @@ def get_logs(
                     rl.rating,
                     rl.timestamp as rating_timestamp,
                     f.category,
-                    f.question as faq_question
+                    f.question as faq_question,
+                    lg.id as llm_gen_id,
+                    lg.model as llm_model,
+                    lg.chunks_used as llm_chunks_used,
+                    lg.chunks_data as llm_chunks_data,
+                    lg.pii_detected as llm_pii_detected,
+                    lg.tokens_prompt as llm_tokens_prompt,
+                    lg.tokens_completion as llm_tokens_completion,
+                    lg.tokens_total as llm_tokens_total,
+                    lg.finish_reason as llm_finish_reason,
+                    lg.generation_time_ms as llm_generation_time_ms,
+                    lg.error_message as llm_error_message
                 FROM query_logs ql
                 LEFT JOIN answer_logs al ON ql.id = al.query_log_id
                 LEFT JOIN rating_logs rl ON al.id = rl.answer_log_id
+                LEFT JOIN llm_generations lg ON al.id = lg.answer_log_id
                 LEFT JOIN faq f ON al.faq_id = f.id
                 WHERE 1=1
             """
@@ -622,8 +721,8 @@ def get_logs(
 
             if no_answer:
                 # Показываем только запросы где не нашелся ответ (faq_id IS NULL или совпадение < порога)
-                # Исключаем disambiguation - это не ошибка, а уточнение
-                query += f" AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD}) AND al.search_level NOT IN ('disambiguation_shown', 'disambiguation')"
+                # Исключаем disambiguation и clarification - это не ошибки, а уточнения
+                query += f" AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD}) AND al.search_level NOT IN ('disambiguation_shown', 'disambiguation', 'clarification')"
 
             if platform:
                 query += " AND ql.platform = ?"
@@ -647,6 +746,27 @@ def get_logs(
 
             logs = []
             for row in rows:
+                import json
+
+                # Формируем llm_metadata если есть данные
+                llm_metadata = None
+                if row["llm_gen_id"]:
+                    llm_metadata = {
+                        'id': row['llm_gen_id'],
+                        'model': row['llm_model'],
+                        'chunks_used': row['llm_chunks_used'],
+                        'chunks_data': json.loads(row['llm_chunks_data']) if row['llm_chunks_data'] else None,
+                        'pii_detected': row['llm_pii_detected'],
+                        'tokens': {
+                            'prompt': row['llm_tokens_prompt'],
+                            'completion': row['llm_tokens_completion'],
+                            'total': row['llm_tokens_total']
+                        },
+                        'finish_reason': row['llm_finish_reason'],
+                        'generation_time_ms': row['llm_generation_time_ms'],
+                        'error_message': row['llm_error_message']
+                    }
+
                 logs.append({
                     "query_id": row["query_id"],
                     "user_id": row["user_id"],
@@ -663,7 +783,8 @@ def get_logs(
                     "rating": row["rating"],
                     "rating_timestamp": convert_utc_to_utc7(row["rating_timestamp"]),
                     "category": row["category"],
-                    "faq_question": row["faq_question"]
+                    "faq_question": row["faq_question"],
+                    "llm_metadata": llm_metadata
                 })
 
             return logs, total
@@ -720,7 +841,7 @@ def get_statistics() -> Dict:
                 LEFT JOIN answer_logs al ON ql.id = al.query_log_id
                 WHERE ql.period_id IS NULL
                   AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
-                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation', 'clarification'))
             """)
             stats["no_answer_count"] = cursor.fetchone()["total"]
 
@@ -787,6 +908,25 @@ def get_statistics() -> Dict:
                 }
                 for row in cursor.fetchall()
             ]
+
+            # RAG Statistics (только неархивированные)
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as rag_count,
+                    AVG(lg.tokens_total) as avg_tokens,
+                    SUM(lg.tokens_total) as total_tokens,
+                    COUNT(CASE WHEN lg.error_message IS NOT NULL THEN 1 END) as rag_errors
+                FROM answer_logs al
+                LEFT JOIN llm_generations lg ON al.id = lg.answer_log_id
+                WHERE al.period_id IS NULL
+                  AND lg.id IS NOT NULL
+            """)
+            rag_stats = cursor.fetchone()
+
+            stats['rag_answers'] = rag_stats['rag_count'] or 0
+            stats['rag_avg_tokens'] = round(rag_stats['avg_tokens'] or 0, 1)
+            stats['rag_total_tokens'] = rag_stats['total_tokens'] or 0
+            stats['rag_errors'] = rag_stats['rag_errors'] or 0
 
             return stats
     except Exception as e:
@@ -1376,7 +1516,7 @@ def get_period_statistics(period_id: int) -> Dict:
                 LEFT JOIN answer_logs al ON ql.id = al.query_log_id
                 WHERE ql.period_id = ?
                   AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
-                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation', 'clarification'))
             """, (period_id,))
             stats["no_answer_count"] = cursor.fetchone()["total"]
 
@@ -1517,7 +1657,7 @@ def get_failed_queries_for_period(period_id: int, limit: int = 100) -> List[Dict
                 LEFT JOIN rating_logs rl ON al.id = rl.answer_log_id
                 WHERE ql.period_id = ?
                   AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD} OR rl.rating = 'not_helpful')
-                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation', 'clarification'))
                 ORDER BY ql.timestamp DESC
                 LIMIT ?
             """, (period_id, limit))
