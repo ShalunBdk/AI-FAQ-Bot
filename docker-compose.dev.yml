@@ -19,6 +19,8 @@ services:
       - ./src/web/templates:/app/src/web/templates
       # Статические файлы (CSS, шрифты)
       - ./src/web/static:/app/src/web/static
+      # Кэш моделей HuggingFace (предотвращает повторное скачивание)
+      - huggingface-cache:/root/.cache/huggingface
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
@@ -50,6 +52,8 @@ services:
       - ./data/faq_database.db:/app/data/faq_database.db
       # Векторная база ChromaDB (общая для всех сервисов)
       - ./data/chroma_db:/app/data/chroma_db
+      # Кэш моделей HuggingFace (предотвращает повторное скачивание)
+      - huggingface-cache:/root/.cache/huggingface
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
@@ -88,6 +92,8 @@ services:
       - ./data/faq_database.db:/app/data/faq_database.db
       # Векторная база ChromaDB (общая для всех сервисов)
       - ./data/chroma_db:/app/data/chroma_db
+      # Кэш моделей HuggingFace (предотвращает повторное скачивание)
+      - huggingface-cache:/root/.cache/huggingface
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     ports:
@@ -110,5 +116,7 @@ networks:
     driver: bridge
 
 volumes:
-  # Named volume для кэша моделей (чтобы не скачивать при каждой пересборке)
+  # Named volume для кэша моделей HuggingFace (предотвращает повторное скачивание)
+  huggingface-cache:
+  # Named volume для кэша моделей sentence-transformers (чтобы не скачивать при каждой пересборке)
   sentence-transformers-cache:

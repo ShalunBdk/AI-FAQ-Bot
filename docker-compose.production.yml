@@ -38,6 +38,8 @@ services:
       - ./src/web/templates:/app/src/web/templates
       # Статические файлы (CSS, шрифты)
       - ./src/web/static:/app/src/web/static
+      # Кэш моделей HuggingFace (предотвращает повторное скачивание)
+      - huggingface-cache:/root/.cache/huggingface
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     networks:
@@ -72,6 +74,8 @@ services:
     volumes:
       # База данных SQLite (общая для всех сервисов)
       - ./data:/app/data
+      # Кэш моделей HuggingFace (предотвращает повторное скачивание)
+      - huggingface-cache:/root/.cache/huggingface
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     networks:
@@ -103,6 +107,8 @@ services:
     volumes:
       # База данных SQLite (общая для всех сервисов)
       - ./data:/app/data
+      # Кэш моделей HuggingFace (предотвращает повторное скачивание)
+      - huggingface-cache:/root/.cache/huggingface
       # Кэш моделей sentence-transformers
       - sentence-transformers-cache:/root/.cache/torch/sentence_transformers
     networks:
@@ -128,5 +134,7 @@ networks:
     external: true
 
 volumes:
-  # Named volume для кэша моделей
+  # Named volume для кэша моделей HuggingFace (предотвращает повторное скачивание)
+  huggingface-cache:
+  # Named volume для кэша моделей sentence-transformers
   sentence-transformers-cache:
