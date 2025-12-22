@@ -423,6 +423,34 @@ def find_best_match(query_text: str, n_results: int = 3):
     return best_meta, similarity, results
 
 
+def is_rag_clarification(answer_text: str) -> bool:
+    """
+    Определяет, является ли RAG ответ просьбой уточнить вопрос
+
+    Проверяет ключевые фразы, которые RAG использует когда вопрос слишком широкий
+
+    Returns:
+        True если RAG просит уточнить
+    """
+    clarification_patterns = [
+        'уточните',
+        'уточнить',
+        'пожалуйста, уточните',
+        'какой именно',
+        'что именно',
+        'конкретнее',
+        'например:',
+        'вас интересует'
+    ]
+
+    answer_lower = answer_text.lower()
+    for pattern in clarification_patterns:
+        if pattern in answer_lower:
+            return True
+
+    return False
+
+
 def is_rag_no_answer(answer_text: str, metadata: dict) -> bool:
     """
     Определяет, является ли RAG ответ фактическим "no answer"
@@ -438,7 +466,7 @@ def is_rag_no_answer(answer_text: str, metadata: dict) -> bool:
     if metadata and 'error' in metadata:
         return True
 
-    # Проверка 2: Ключевые фразы
+    # Проверка 2: Ключевые фразы "no answer"
     no_answer_patterns = [
         'к сожалению',
         'не нашел информации',
@@ -447,7 +475,9 @@ def is_rag_no_answer(answer_text: str, metadata: dict) -> bool:
         'не знаю',
         'не могу ответить',
         'информации нет',
-        'в базе знаний нет'
+        'в базе знаний нет',
+        'извините',
+        'я не знаю'
     ]
 
     answer_lower = answer_text.lower()
@@ -662,10 +692,10 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             rag_metadata['chunks_data'] = llm_chunks_data
                             logger.info(f"✅ RAG ответ сгенерирован. Токенов: {rag_metadata.get('tokens_used', {}).get('total', 'N/A')}")
 
-                            # Проверяем, является ли это фактическим "no answer"
-                            if is_rag_no_answer(rag_answer, rag_metadata):
-                                logger.info("RAG вернул 'no answer', помечаем как search_level='none'")
-                                # Создаем новый SearchResult для правильной статистики
+                            # Проверяем тип RAG ответа
+                            # 1. Проверяем, является ли это просьбой уточнить (приоритет выше)
+                            if is_rag_clarification(rag_answer):
+                                logger.info("RAG просит уточнить вопрос, помечаем как search_level='clarification'")
                                 from src.core.search import SearchResult
                                 result = SearchResult(
                                     found=False,
@@ -673,7 +703,22 @@ async def search_faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     question='',
                                     answer=final_answer,
                                     confidence=0.0,
-                                    search_level='none',
+                                    search_level='clarification',
+                                    all_results=None,
+                                    message=final_answer
+                                )
+                            # 2. Проверяем, является ли это фактическим "no answer"
+                            elif is_rag_no_answer(rag_answer, rag_metadata):
+                                logger.info("RAG вернул 'no answer', помечаем как search_level='no_answer'")
+                                from src.core.search import SearchResult
+                                result = SearchResult(
+                                    found=False,
+                                    faq_id=None,
+                                    question='',
+                                    answer=final_answer,
+                                    confidence=0.0,
+                                    search_level='no_answer',
+                                    all_results=None,
                                     message=final_answer
                                 )
                         else:

@@ -169,7 +169,7 @@ result = find_answer(query_text, collection, settings)
 - `keyword_search_max_words`: "5"
 - `fallback_message`: "..."
 
-**Icons**: 🎯 exact, 🔑 keyword, 🧠 semantic, 🔀 disambiguation_shown, ✅ disambiguation, 📄 direct, ❌ none
+**Icons**: 🎯 exact, 🔑 keyword, 🧠 semantic, 🔀 disambiguation_shown, ✅ disambiguation, 📄 direct, ❓ clarification, 🚫 no_answer, ❌ none
 
 **Disambiguation (Разрешение неоднозначностей):**
 
@@ -211,6 +211,39 @@ When multiple FAQs have similar confidence scores (difference < 7%), the system 
 - `src/bots/b24_bot.py`: Bitrix24 UI (lines 484-516, 815-868)
 - `src/web/templates/admin/logs.html`: Frontend filtering (lines 441-464)
 - `src/core/database.py`: SQL exclusions (lines 626, 717-724, 1373-1381, 1518-1520)
+
+**Clarification & No Answer (RAG Special Cases):**
+
+When RAG is enabled, the system detects special cases:
+
+1. **❓ Clarification** (`search_level='clarification'`):
+   - Triggered when user query is too broad (e.g., "заказ", "письмо", "доставка")
+   - RAG asks user to clarify with specific examples
+   - Detection: `is_rag_clarification()` checks for keywords like "уточните", "какой именно", "что именно"
+   - **Not counted** as "no answer" or failed query
+   - Shows orange badge in UI: `❓ Уточнение`
+
+2. **🚫 No Answer** (`search_level='no_answer'`):
+   - Triggered when RAG cannot find relevant information in KB
+   - Detection: `is_rag_no_answer()` checks for keywords like "к сожалению", "не нашел информации", "не знаю"
+   - **Counted** as failed query in statistics
+   - Shows red badge in UI: `🚫 Не найдено`
+
+3. **❌ None** (`search_level='none'`):
+   - Fallback when cascading search finds nothing (no RAG involvement, or RAG error)
+   - **Counted** as failed query
+   - Shows red badge in UI: `❌ None`
+
+**Detection Functions** (`bot.py`, `b24_bot.py`):
+```python
+is_rag_clarification(answer_text: str) -> bool
+is_rag_no_answer(answer_text: str, metadata: dict) -> bool
+```
+
+**Statistics Exclusions** (in `database.py`):
+- `'clarification'` excluded from failed queries (like disambiguation)
+- `'no_answer'` and `'none'` counted as failed queries
+- SQL filter: `NOT IN ('disambiguation_shown', 'disambiguation', 'clarification')`
 
 ### 2. RAG (Retrieval-Augmented Generation) (`src/core/llm_service.py` + `src/core/pii_anonymizer.py`)
 
@@ -356,8 +389,14 @@ get_failed_queries_for_period(period_id, limit) → List[Dict]
 - `bot_settings` (key, value)
 - `bitrix24_permissions` (domain, user_id, role)
 - `test_periods` (id, name, description, start_date, end_date, status)
+- **`llm_generations`** (answer_log_id, model, chunks_used, chunks_data, pii_detected, tokens_prompt, tokens_completion, tokens_total, finish_reason, generation_time_ms, error_message)
 
-**Note on RAG:** RAG-generated answers are stored in `answer_logs.answer_shown` field. Search level remains original (exact/keyword/semantic), not "rag".
+**RAG Logging:**
+- RAG-generated answers stored in `answer_logs.answer_shown` with original `search_level` (exact/keyword/semantic)
+- LLM metadata stored in separate `llm_generations` table with FOREIGN KEY to `answer_logs`
+- Chunks data stored as JSON: `[{"faq_id": "...", "question": "...", "confidence": 85.5}, ...]`
+- "No answer" detection: Combines metadata.error check + key phrase analysis (`is_rag_no_answer()`)
+- Function: `add_llm_generation_log()` for logging RAG metadata
 
 ### 4. Bots
 
@@ -629,6 +668,10 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ✅ Use RAG for improving answer quality when confidence >= RAG_MIN_RELEVANCE_SCORE
 - ✅ Always anonymize PII before sending to LLM (automatic in LLMService)
 - ✅ Test RAG pipeline with `scripts/test_rag_pipeline.py`
+- ✅ Log RAG metadata using `add_llm_generation_log()` after RAG generation
+- ✅ Store chunks_data as JSON list with faq_id, question, confidence
+- ✅ Detect RAG "no answer" using `is_rag_no_answer()` function
+- ✅ Measure generation_time_ms for performance tracking
 
 **DON'T:**
 - ❌ Store UTC+7 directly (store UTC)
@@ -641,6 +684,9 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ❌ Send raw PII to LLM (always use LLMService which handles anonymization)
 - ❌ Hardcode OpenRouter API key (use environment variable)
 - ❌ Use RAG for low-confidence results (< RAG_MIN_RELEVANCE_SCORE)
+- ❌ Forget to log LLM metadata when RAG is used
+- ❌ Store chunks_data as plain string (must be JSON)
+- ❌ Count RAG errors as regular "no answer" without checking metadata
 
 ---
 

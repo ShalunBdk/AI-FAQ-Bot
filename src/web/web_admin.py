@@ -1235,8 +1235,6 @@ def get_logs_statistics():
 
 
 @admin_bp.route('/api/logs/rag-statistics', methods=['GET'])
-@require_auth_in_production
-@check_bitrix24_role('observer')
 def get_rag_statistics():
     """
     Получение статистики RAG генерации

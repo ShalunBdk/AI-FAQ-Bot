@@ -487,6 +487,91 @@ Secure RAG архитектура значительно улучшает кач
 
 ---
 
+## RAG Logging and Analytics
+
+**Все RAG генерации автоматически логируются** с детальными метаданными для анализа и оптимизации.
+
+### Что логируется:
+
+- **Model**: Модель LLM (например, `openai/gpt-4o-mini`)
+- **Token usage**: Количество токенов (prompt, completion, total)
+- **FAQ chunks**: Список FAQ отправленных в контекст с вопросами и confidence scores
+- **PII detected**: Количество обнаруженных и анонимизированных PII сущностей
+- **Generation latency**: Время генерации в миллисекундах
+- **Error messages**: Описание ошибок (если возникли)
+
+### Просмотр RAG данных в Admin Panel:
+
+1. **🤖 RAG Badge**: Ищите badge "RAG" рядом с иконками уровня поиска (🎯/🔑/🧠)
+2. **ℹ️ Info Icon**: Нажмите на иконку "info" чтобы раскрыть expandable секцию с метаданными
+3. **📊 RAG Statistics Card**: Дашборд показывает:
+   - Всего ответов с RAG
+   - Использовано токенов
+   - Success rate (%)
+   - Среднее время генерации
+4. **❌ Failed Queries Filter**: Автоматически включает RAG errors где LLM вернул "no answer"
+
+### Database Schema:
+
+Таблица `llm_generations` хранит:
+```sql
+CREATE TABLE llm_generations (
+    id INTEGER PRIMARY KEY,
+    answer_log_id INTEGER,  -- FK to answer_logs
+    model TEXT,
+    chunks_used INTEGER,
+    chunks_data TEXT,  -- JSON: [{"faq_id": "...", "question": "...", "confidence": 85.5}, ...]
+    pii_detected INTEGER,
+    tokens_prompt INTEGER,
+    tokens_completion INTEGER,
+    tokens_total INTEGER,
+    finish_reason TEXT,
+    generation_time_ms INTEGER,
+    error_message TEXT,
+    created_at TIMESTAMP,
+    FOREIGN KEY (answer_log_id) REFERENCES answer_logs(id)
+)
+```
+
+### Функция логирования:
+
+```python
+from src.core import database
+
+# После RAG генерации
+database.add_llm_generation_log(
+    answer_log_id=answer_log_id,
+    model=rag_metadata.get('model', 'unknown'),
+    chunks_used=rag_metadata.get('chunks_used', 0),
+    chunks_data=rag_metadata.get('chunks_data', []),
+    pii_detected=rag_metadata.get('pii_found', 0),
+    tokens_prompt=rag_metadata.get('tokens_used', {}).get('prompt', 0),
+    tokens_completion=rag_metadata.get('tokens_used', {}).get('completion', 0),
+    tokens_total=rag_metadata.get('tokens_used', {}).get('total', 0),
+    finish_reason=rag_metadata.get('finish_reason', 'unknown'),
+    generation_time_ms=rag_metadata.get('generation_time_ms', 0),
+    error_message=rag_metadata.get('error')
+)
+```
+
+### "No Answer" Detection:
+
+RAG может не найти ответ. Система автоматически определяет это по:
+
+1. **metadata.error** - наличие ошибки в метаданных
+2. **Ключевые фразы** в ответе:
+   - "к сожалению"
+   - "не нашел информации" / "не нашёл информации"
+   - "нет информации"
+   - "не знаю"
+   - "не могу ответить"
+   - "информации нет"
+   - "в базе знаний нет"
+
+Функция `is_rag_no_answer()` автоматически помечает такие случаи как `search_level='none'`.
+
+---
+
 **Автор:** AI Assistant
-**Дата:** 2025-12-13
-**Версия:** 1.0
+**Дата:** 2025-12-19
+**Версия:** 1.1 (с RAG Logging)

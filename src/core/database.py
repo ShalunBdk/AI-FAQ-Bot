@@ -721,8 +721,8 @@ def get_logs(
 
             if no_answer:
                 # Показываем только запросы где не нашелся ответ (faq_id IS NULL или совпадение < порога)
-                # Исключаем disambiguation - это не ошибка, а уточнение
-                query += f" AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD}) AND al.search_level NOT IN ('disambiguation_shown', 'disambiguation')"
+                # Исключаем disambiguation и clarification - это не ошибки, а уточнения
+                query += f" AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD}) AND al.search_level NOT IN ('disambiguation_shown', 'disambiguation', 'clarification')"
 
             if platform:
                 query += " AND ql.platform = ?"
@@ -841,7 +841,7 @@ def get_statistics() -> Dict:
                 LEFT JOIN answer_logs al ON ql.id = al.query_log_id
                 WHERE ql.period_id IS NULL
                   AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
-                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation', 'clarification'))
             """)
             stats["no_answer_count"] = cursor.fetchone()["total"]
 
@@ -1516,7 +1516,7 @@ def get_period_statistics(period_id: int) -> Dict:
                 LEFT JOIN answer_logs al ON ql.id = al.query_log_id
                 WHERE ql.period_id = ?
                   AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD})
-                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation', 'clarification'))
             """, (period_id,))
             stats["no_answer_count"] = cursor.fetchone()["total"]
 
@@ -1657,7 +1657,7 @@ def get_failed_queries_for_period(period_id: int, limit: int = 100) -> List[Dict
                 LEFT JOIN rating_logs rl ON al.id = rl.answer_log_id
                 WHERE ql.period_id = ?
                   AND (al.faq_id IS NULL OR al.similarity_score < {SIMILARITY_THRESHOLD} OR rl.rating = 'not_helpful')
-                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation'))
+                  AND (al.search_level IS NULL OR al.search_level NOT IN ('disambiguation_shown', 'disambiguation', 'clarification'))
                 ORDER BY ql.timestamp DESC
                 LIMIT ?
             """, (period_id, limit))
