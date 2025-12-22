@@ -18,12 +18,11 @@ RUN apt-get update && apt-get install -y \
 # Копируем requirements.txt и устанавливаем Python зависимости
 COPY requirements.txt .
 
-# ВАЖНО: Сначала устанавливаем PyTorch CPU-only (без CUDA)
-# Это экономит ~1.5 ГБ и ускоряет сборку
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+# Обновляем pip, setuptools и wheel
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Затем устанавливаем остальные зависимости
-# sentence-transformers будет использовать уже установленный CPU PyTorch
+# Устанавливаем все зависимости (включая PyTorch CPU-only)
+# pip автоматически выберет CPU версию если CUDA недоступна
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем все файлы проекта

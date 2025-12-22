@@ -16,10 +16,11 @@ RUN apt-get update && apt-get install -y \
 # Копируем requirements.txt
 COPY requirements.txt .
 
-# Устанавливаем PyTorch CPU-only (без CUDA)
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+# Обновляем pip, setuptools и wheel
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Устанавливаем Python зависимости
+# Устанавливаем все Python зависимости (включая PyTorch CPU-only)
+# pip автоматически выберет CPU версию если CUDA недоступна
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем все файлы проекта

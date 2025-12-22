@@ -2,9 +2,9 @@
 python-telegram-bot[job-queue]>=21.0
 
 # Векторизация и NLP
+torch>=2.0.0
 sentence-transformers>=2.2.2
 transformers>=4.35.2
-# torch устанавливается в Dockerfile как CPU-only версия
 pymorphy3>=1.2.0
 pymorphy3-dicts-ru>=2.4.0
 natasha>=1.6.0
