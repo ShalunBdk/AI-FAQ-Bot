@@ -12,6 +12,7 @@ import logging
 import os
 from typing import List, Dict, Optional, Tuple
 from openai import OpenAI
+from datetime import datetime
 
 from src.core.pii_anonymizer import PiiAnonymizer
 
@@ -57,6 +58,8 @@ class LLMService:
 
         # Анонимайзер
         self.anonymizer = PiiAnonymizer()
+
+        
 
         # 1. Определяем справочник (можно вынести в settings.py)
         DEPARTMENTS_INFO = """
@@ -220,6 +223,12 @@ class LLMService:
         try:
             logger.info(f"🤖 RAG генерация ответа для вопроса: '{user_question}'")
             logger.debug(f"Получено {len(db_chunks)} чанков из базы данных")
+            now = datetime.now()
+            days = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+            current_date_str = f"{now.strftime('%d.%m.%Y')} ({days[now.weekday()]})"
+            
+            # Собираем финальный промпт с датой
+            full_system_prompt = f"СЕГОДНЯШНЯЯ ДАТА: {current_date_str}\n\n{self.system_prompt}"
 
             # Шаг 1: Подготовка контекста
             context = self._prepare_context(db_chunks)
@@ -246,7 +255,7 @@ class LLMService:
 
             # Шаг 4: Формируем запрос к LLM
             messages = [
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": full_system_prompt}, 
                 {"role": "user", "content": f"КОНТЕКСТ:\n{anonymized_context}\n\nВОПРОС: {anonymized_question}"}
             ]
 
