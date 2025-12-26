@@ -10,6 +10,7 @@
 
 import logging
 import os
+import time
 from typing import List, Dict, Optional, Tuple
 from openai import OpenAI
 from datetime import datetime
@@ -49,6 +50,11 @@ class LLMService:
         # Модель
         self.model = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
         logger.info(f"Используется LLM модель: {self.model}")
+
+        # Retry параметры (настраиваемые через env)
+        self.max_retries = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
+        self.retry_delay = int(os.getenv("OPENROUTER_RETRY_DELAY", "2"))
+        logger.debug(f"Retry настройки: {self.max_retries} попыток, начальная задержка {self.retry_delay}с")
 
         # Инициализируем OpenAI клиент (совместим с OpenRouter)
         self.client = OpenAI(
@@ -261,13 +267,36 @@ class LLMService:
 
             logger.debug(f"Запрос к LLM модели: {self.model}")
 
-            # Шаг 5: Запрос к OpenRouter
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
+            # Шаг 5: Запрос к OpenRouter с retry механизмом
+            retry_delay = self.retry_delay  # начальная задержка
+
+            for attempt in range(1, self.max_retries + 1):
+                try:
+                    logger.debug(f"Попытка {attempt}/{self.max_retries} подключения к OpenRouter...")
+
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        max_tokens=max_tokens,
+                        temperature=temperature
+                    )
+
+                    logger.debug(f"✅ Успешное подключение на попытке {attempt}")
+                    break  # Успех, выходим из цикла
+
+                except Exception as e:
+                    error_msg = str(e)
+
+                    if attempt < self.max_retries:
+                        logger.warning(
+                            f"⚠️ Попытка {attempt}/{self.max_retries} не удалась: {error_msg}. "
+                            f"Повтор через {retry_delay} секунд..."
+                        )
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff: 2s, 4s, 8s, ...
+                    else:
+                        logger.error(f"❌ Все {self.max_retries} попытки подключения к OpenRouter не удались")
+                        raise  # Пробрасываем исключение после всех попыток
 
             # Получаем ответ
             anonymized_answer = response.choices[0].message.content

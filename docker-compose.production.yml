@@ -39,6 +39,8 @@ services:
       - RAG_MAX_CHUNKS=${RAG_MAX_CHUNKS:-5}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      - OPENROUTER_MAX_RETRIES=${OPENROUTER_MAX_RETRIES:-3}
+      - OPENROUTER_RETRY_DELAY=${OPENROUTER_RETRY_DELAY:-2}
     volumes:
       # База данных SQLite (общая для всех сервисов)
       - ./data:/app/data
@@ -87,6 +89,8 @@ services:
       - RAG_MAX_CHUNKS=${RAG_MAX_CHUNKS:-5}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      - OPENROUTER_MAX_RETRIES=${OPENROUTER_MAX_RETRIES:-3}
+      - OPENROUTER_RETRY_DELAY=${OPENROUTER_RETRY_DELAY:-2}
     volumes:
       # База данных SQLite (общая для всех сервисов)
       - ./data:/app/data
@@ -128,6 +132,8 @@ services:
       - RAG_MAX_CHUNKS=${RAG_MAX_CHUNKS:-5}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      - OPENROUTER_MAX_RETRIES=${OPENROUTER_MAX_RETRIES:-3}
+      - OPENROUTER_RETRY_DELAY=${OPENROUTER_RETRY_DELAY:-2}
     volumes:
       # База данных SQLite (общая для всех сервисов)
       - ./data:/app/data
