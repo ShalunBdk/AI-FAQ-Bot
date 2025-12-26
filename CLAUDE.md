@@ -4,11 +4,12 @@
 
 > **Purpose**: Comprehensive context about the AI-FAQ-Bot codebase for AI assistants.
 
-**Last Updated**: 2025-12-18
+**Last Updated**: 2025-12-26
 **Language**: Python 3.11
 **Stack**: python-telegram-bot, ChromaDB, sentence-transformers, pymorphy3, Flask, SQLite, OpenRouter API
 **Semantic Model**: deepvk/USER2-base (Russian-optimized, 8K context, with task-specific prefixes)
-**RAG**: OpenRouter API (GPT-4, Claude, Gemini) with Privacy First anonymization
+**RAG**: OpenRouter API (GPT-4, Claude, Gemini) with Privacy First anonymization + retry mechanism (3 attempts)
+**Docker**: Persistent volumes for HuggingFace models cache (no re-download on restart)
 
 ---
 
@@ -296,6 +297,8 @@ original = anonymizer.deanonymize(anonymized, mapping)
 - Context preparation from multiple FAQs
 - Customizable system prompt with department routing
 - Token usage tracking
+- **Retry mechanism**: 3 attempts with exponential backoff (2s → 4s → 8s) for network errors
+- Configurable retry parameters via environment variables
 
 **Main method:**
 ```python
@@ -440,6 +443,15 @@ get_failed_queries_for_period(period_id, limit) → List[Dict]
 - "Optimize" button in FAQ form - automatically removes duplicate word forms
 - Toast notifications for user feedback
 - Keyword optimization statistics display
+- **Expandable answer sections** - "Показать ответ" button reveals full bot response
+  - Shows `answer_shown` field (actual text sent to user)
+  - Differentiates RAG answers (🤖 RAG Ответ) from regular answers (📝 Ответ пользователю)
+  - Toggle visibility with click
+- **RAG metadata display** - detailed LLM generation info for RAG answers
+  - Model, tokens (prompt/completion/total), PII detected
+  - FAQ chunks used in context with confidence scores
+  - Generation time in milliseconds
+  - Error messages (if any)
 
 **Static Assets:**
 - Uses local Tailwind CSS (no CDN)
@@ -587,6 +599,10 @@ RAG_MAX_TOKENS=1024
 RAG_TEMPERATURE=0.3
 RAG_MIN_RELEVANCE_SCORE=45.0
 RAG_MAX_CHUNKS=5
+
+# RAG Retry settings (for network errors)
+OPENROUTER_MAX_RETRIES=3      # Number of retry attempts
+OPENROUTER_RETRY_DELAY=2      # Initial delay in seconds (exponential backoff)
 ```
 
 ### Cascade Search Settings (bot_settings table)
@@ -608,6 +624,8 @@ RAG_MAX_CHUNKS=5
 | RAG_TEMPERATURE | 0.3 | Generation temperature (0.0-1.0) |
 | RAG_MIN_RELEVANCE_SCORE | 45.0 | Min confidence to trigger RAG |
 | RAG_MAX_CHUNKS | 5 | Max FAQs in context |
+| OPENROUTER_MAX_RETRIES | 3 | Number of retry attempts on network errors |
+| OPENROUTER_RETRY_DELAY | 2 | Initial delay in seconds (exponential backoff) |
 
 ---
 
@@ -643,6 +661,13 @@ docker-compose -f docker-compose.production.yml up -d
 docker-compose -f docker-compose.production.yml --profile telegram up -d
 ```
 
+**Docker Volumes:**
+- `huggingface-cache` - persistent storage for HuggingFace models (deepvk/USER2-base)
+  - Path: `/root/.cache/huggingface`
+  - Prevents models from re-downloading on container restart (~500MB saved)
+- `sentence-transformers-cache` - persistent storage for sentence-transformers cache
+  - Path: `/root/.cache/torch/sentence_transformers`
+
 ---
 
 ## Important Constraints
@@ -674,6 +699,9 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 - ✅ Store chunks_data as JSON list with faq_id, question, confidence
 - ✅ Detect RAG "no answer" using `is_rag_no_answer()` function
 - ✅ Measure generation_time_ms for performance tracking
+- ✅ Use retry mechanism for OpenRouter API (already built into LLMService)
+- ✅ Configure retry parameters via OPENROUTER_MAX_RETRIES and OPENROUTER_RETRY_DELAY
+- ✅ Exclude 'clarification' from failed queries (like disambiguation)
 
 **DON'T:**
 - ❌ Store UTC+7 directly (store UTC)
@@ -692,4 +720,4 @@ docker-compose -f docker-compose.production.yml --profile telegram up -d
 
 ---
 
-**Document Version**: 3.0 (deepvk/USER2-base + Improved Disambiguation + Enhanced Logging + Privacy First RAG)
+**Document Version**: 3.1 (deepvk/USER2-base + Improved Disambiguation + Enhanced Logging + Privacy First RAG + Retry Mechanism + Docker Volumes)
