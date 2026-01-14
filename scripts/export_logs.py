@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 # --- КОНФИГУРАЦИЯ ---
-DB_NAME = r'C:\Users\sar\Downloads\Projects\FAQBot\scripts\faq_database.db'          # Имя файла вашей базы данных
+DB_NAME = r'C:\Users\sar\Downloads\Projects\FAQBot\data\faq_database.db'          # Имя файла вашей базы данных
 EXCEL_FILE = 'report.xlsx'   # Имя выходного файла Excel
 
 def export_logs_to_excel():
