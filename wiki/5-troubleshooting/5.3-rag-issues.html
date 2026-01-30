@@ -1,0 +1,162 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">5.3 RAG не работает</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Быстрая проверка</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Проверить настройки RAG
+grep RAG .env
+grep OPENROUTER .env
+
+# Проверить логи на ошибки LLM
+docker logs faq-bot-web-1 | grep -i "openrouter\|llm\|rag"</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: RAG не генерирует ответы</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 1: RAG выключен</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Проверить
+grep RAG_ENABLED .env
+
+# Должно быть:
+# RAG_ENABLED=true</code></pre>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong> Установить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">RAG_ENABLED=true</code> и перезапустить контейнеры.</p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 2: Нет API ключа</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">grep OPENROUTER_API_KEY .env
+
+# Должно быть:
+# OPENROUTER_API_KEY=sk-or-v1-xxxxx</code></pre>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong> Получить ключ на <a style="color: #0366d6; text-decoration: none;" href="https://openrouter.ai">openrouter.ai</a> и добавить в .env</p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 3: Недействительный API ключ</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Симптомы в логах:</strong></p>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">401 Unauthorized
+Invalid API key</code></pre>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong></p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Проверьте ключ в личном кабинете OpenRouter</li>
+    <li style="margin: 8px 0;">Сгенерируйте новый ключ</li>
+    <li style="margin: 8px 0;">Обновите .env и перезапустите контейнеры</li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Ошибка "Insufficient credits"</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Закончился баланс на OpenRouter.</p>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong></p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Пополнить баланс на openrouter.ai</li>
+    <li style="margin: 8px 0;">Или переключиться на бесплатную модель:
+        <pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">OPENROUTER_MODEL=google/gemini-2.0-flash-001</code></pre>
+    </li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: RAG работает медленно</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Диагностика</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">В логах посмотрите <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">generation_time_ms</code> для RAG ответов.</p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Нормальные значения</h3>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Модель</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Время ответа</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">gpt-4o-mini</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">1-3 сек</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">gpt-4o</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">3-8 сек</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">claude-3.5-sonnet</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">2-5 сек</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">gemini-2.0-flash</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">1-2 сек</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решения</h3>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Использовать более быструю модель (gpt-4o-mini, gemini-flash)</li>
+    <li style="margin: 8px 0;">Уменьшить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">RAG_MAX_TOKENS</code> (меньше токенов = быстрее)</li>
+    <li style="margin: 8px 0;">Уменьшить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">RAG_MAX_CHUNKS</code> (меньше контекста = быстрее)</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Сетевые ошибки</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Симптомы в логах:</strong></p>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">Connection timeout
+Network unreachable
+SSL certificate error</code></pre>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong></p>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Система автоматически повторяет запросы (retry). Проверьте настройки:</p>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># .env
+OPENROUTER_MAX_RETRIES=3      # Количество попыток
+OPENROUTER_RETRY_DELAY=2      # Задержка между попытками (сек)</code></pre>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Если ошибки постоянные — проверьте:</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Доступность OpenRouter API из контейнера</li>
+    <li style="margin: 8px 0;">Настройки firewall</li>
+    <li style="margin: 8px 0;">Proxy настройки</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: RAG дает неточные ответы</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 1: Низкий порог релевантности</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">RAG использует FAQ с низким confidence.</p>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong> Повысить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">RAG_MIN_RELEVANCE_SCORE</code> (например, 50-60)</p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 2: Слишком много chunks</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">RAG использует слишком много FAQ, включая нерелевантные.</p>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong> Уменьшить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">RAG_MAX_CHUNKS</code> (3-5)</p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 3: Высокая температура</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">LLM слишком "креативен" и добавляет информацию.</p>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong> Понизить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">RAG_TEMPERATURE</code> (0.1-0.3)</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Fallback поведение</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">При ошибках RAG система автоматически возвращает обычный ответ из FAQ (без генерации LLM). Это гарантирует, что пользователь получит ответ даже при проблемах с OpenRouter.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Таблица диагностики</h2>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Ошибка</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Причина</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Решение</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">401 Unauthorized</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Неверный API ключ</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Обновить ключ</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">402 Payment Required</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нет средств</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Пополнить баланс</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">429 Rate Limited</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Превышен лимит</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Подождать или апгрейд</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">500/503 Server Error</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Проблемы OpenRouter</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Подождать, retry работает</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">3.3 Настройки поиска и RAG</li>
+    <li style="margin: 8px 0;">5.1 Бот не отвечает</li>
+</ul>

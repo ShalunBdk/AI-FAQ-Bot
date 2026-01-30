@@ -1,0 +1,123 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">3.4 Тестовые периоды</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Назначение</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Тестовые периоды позволяют:</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Оценить качество работы бота за определенный период</li>
+    <li style="margin: 8px 0;">Сравнить эффективность до и после изменений</li>
+    <li style="margin: 8px 0;">Получить статистику по группам тестирования</li>
+    <li style="margin: 8px 0;">Архивировать логи для анализа</li>
+    <li style="margin: 8px 0;">Экспортировать отчеты</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Создание тестового периода</h2>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Перейдите в раздел <strong style="font-weight: bold;">Тестовые периоды</strong></li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Создать период"</strong></li>
+    <li style="margin: 8px 0;">Введите название (например, "Тестовая группа #1")</li>
+    <li style="margin: 8px 0;">Добавьте описание (опционально)</li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Создать"</strong></li>
+</ol>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Важно:</strong> Одновременно может быть активен только один тестовый период. Все новые логи будут привязаны к активному периоду.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Просмотр статистики</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Для активного или завершенного периода доступна статистика:</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Всего запросов:</strong> общее количество вопросов</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Успешных ответов:</strong> процент найденных ответов</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Распределение по уровням:</strong> exact/keyword/semantic/none</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Средняя уверенность:</strong> средний confidence</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Неотвеченные запросы:</strong> список FAQ, которых не хватает</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Жизненный цикл периода</h2>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Статус</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Описание</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold;">active</strong></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Период активен, логи записываются</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Завершить, Просмотр статистики</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold;">ended</strong></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Период завершен, сбор данных остановлен</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Архивировать, Экспорт, Статистика</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold;">archived</strong></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Логи архивированы</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Экспорт, Просмотр статистики</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Типичный workflow</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">1. Подготовка к тестированию</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Очистите неархивированные логи (если нужно начать с чистого листа)</li>
+    <li style="margin: 8px 0;">Создайте новый тестовый период</li>
+    <li style="margin: 8px 0;">Сообщите тестировщикам о начале теста</li>
+</ol>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">2. Проведение тестирования</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Пользователи задают вопросы боту</li>
+    <li style="margin: 8px 0;">Все запросы автоматически связываются с активным периодом</li>
+    <li style="margin: 8px 0;">Мониторьте статистику в реальном времени</li>
+</ol>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">3. Анализ результатов</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Завершите тестовый период</li>
+    <li style="margin: 8px 0;">Просмотрите статистику</li>
+    <li style="margin: 8px 0;">Изучите неотвеченные запросы</li>
+    <li style="margin: 8px 0;">Экспортируйте отчет</li>
+</ol>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">4. Улучшение базы знаний</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Добавьте недостающие FAQ на основе неотвеченных запросов</li>
+    <li style="margin: 8px 0;">Улучшите ключевые слова</li>
+    <li style="margin: 8px 0;">Нажмите Retrain</li>
+    <li style="margin: 8px 0;">Создайте новый тестовый период для проверки улучшений</li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Экспорт отчетов</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Доступные форматы:</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Excel (.xlsx)</strong> — для анализа в Excel/Google Sheets</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">CSV (.csv)</strong> — универсальный текстовый формат</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">JSON (.json)</strong> — для программной обработки</li>
+</ul>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Отчет содержит:</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Все запросы за период</li>
+    <li style="margin: 8px 0;">Найденные ответы и уровень поиска</li>
+    <li style="margin: 8px 0;">Confidence (уверенность)</li>
+    <li style="margin: 8px 0;">Дату и время каждого запроса</li>
+    <li style="margin: 8px 0;">Платформу (Telegram/Bitrix24)</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Очистка логов</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Перед запуском в production рекомендуется очистить тестовые логи:</p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Убедитесь, что все нужные периоды архивированы</li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Очистить неархивированные логи"</strong></li>
+    <li style="margin: 8px 0;">Подтвердите действие</li>
+</ol>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e; background-color: #fff8c5; padding: 12px; border-left: 4px solid #d4a72c;"><strong style="font-weight: bold;">⚠️ Внимание:</strong> Очистка удаляет логи безвозвратно. Экспортируйте данные перед очисткой!</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">3.1 Веб-панель администратора</li>
+    <li style="margin: 8px 0;">4.1 Мониторинг и логи</li>
+</ul>

@@ -1,0 +1,131 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">2.2 Установка через Docker</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Шаг 1: Клонирование репозитория</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">git clone https://github.com/your-org/FAQBot.git
+cd FAQBot</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Шаг 2: Настройка переменных окружения</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Скопируйте шаблон и отредактируйте:</p>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">cp docker.env.production .env
+nano .env</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Обязательные параметры</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Telegram бот
+TELEGRAM_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+
+# Семантическая модель (не менять без необходимости)
+MODEL_NAME=deepvk/USER2-base
+SIMILARITY_THRESHOLD=45</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">RAG настройки (опционально)</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Включить генерацию ответов через LLM
+RAG_ENABLED=true
+OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
+OPENROUTER_MODEL=openai/gpt-4o-mini
+
+# Параметры генерации
+RAG_MAX_TOKENS=1024
+RAG_TEMPERATURE=0.3
+RAG_MIN_RELEVANCE_SCORE=45.0
+RAG_MAX_CHUNKS=5</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Bitrix24 настройки (опционально)</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">BITRIX24_WEBHOOK=https://your-portal.bitrix24.ru/rest/1/xxxxx/
+BITRIX24_BOT_ID=62
+BITRIX24_CLIENT_ID=local.xxxxxxxx
+BITRIX24_CLIENT_SECRET=xxxxxxxx</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Шаг 3: Запуск контейнеров</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Development (все сервисы)</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">docker compose -f docker-compose.dev.yml up -d</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Production (только Bitrix24)</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">docker compose -f docker-compose.production.yml up -d</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Production с Telegram</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">docker compose -f docker-compose.production.yml --profile telegram up -d</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Шаг 4: Проверка работоспособности</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Проверка статуса контейнеров
+docker ps
+
+# Ожидаемый вывод:
+# CONTAINER ID   IMAGE       STATUS          PORTS
+# abc123         faq-bot     Up 2 minutes    0.0.0.0:5000-5002->5000-5002/tcp</code></pre>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Проверка веб-админки:</strong></p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Откройте <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">http://IP-СЕРВЕРА:5000/admin/</code></li>
+    <li style="margin: 8px 0;">Должна открыться панель управления FAQ</li>
+</ul>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Проверка Telegram бота:</strong></p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Найдите бота в Telegram по имени</li>
+    <li style="margin: 8px 0;">Отправьте команду <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">/start</code></li>
+    <li style="margin: 8px 0;">Бот должен ответить приветствием</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Шаг 5: Загрузка демо-данных (опционально)</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Войти в контейнер
+docker exec -it faq-bot-web-1 bash
+
+# Загрузить 21 демо FAQ
+python scripts/demo_faq.py
+
+# Выйти
+exit</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Первый запуск: что происходит</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">При первом запуске система автоматически:</p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Загружает семантическую модель deepvk/USER2-base (~500 MB)</li>
+    <li style="margin: 8px 0;">Создает базу данных SQLite</li>
+    <li style="margin: 8px 0;">Инициализирует ChromaDB для векторного поиска</li>
+    <li style="margin: 8px 0;">Применяет настройки по умолчанию</li>
+</ol>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Время первого запуска:</strong> 3-10 минут (зависит от скорости интернета)</p>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Последующие запуски:</strong> 10-30 секунд (модель закэширована)</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Docker Volumes</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Система использует persistent volumes для сохранения данных:</p>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Volume</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Назначение</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">./data</code></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">SQLite БД, ChromaDB</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">huggingface-cache</code></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Кэш ML модели</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Полезные команды</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Просмотр логов
+docker logs faq-bot-web-1 -f
+
+# Перезапуск
+docker compose -f docker-compose.dev.yml restart
+
+# Остановка
+docker compose -f docker-compose.dev.yml down
+
+# Пересборка (после обновления кода)
+docker compose -f docker-compose.dev.yml build --no-cache
+docker compose -f docker-compose.dev.yml up -d</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">2.1 Требования и подготовка</li>
+    <li style="margin: 8px 0;">2.3 Первоначальная настройка</li>
+    <li style="margin: 8px 0;">5.4 Ошибки Docker</li>
+</ul>

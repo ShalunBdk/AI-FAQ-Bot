@@ -1621,6 +1621,324 @@ def get_period_failed_queries(period_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+# ========== РАССЫЛКА СООБЩЕНИЙ ==========
+
+# Глобальный словарь для хранения активных рассылок (thread-safe через GIL)
+active_broadcasts = {}
+
+
+@admin_bp.route('/broadcast')
+def broadcast_page():
+    """Страница управления рассылками"""
+    return render_template('admin/broadcast.html')
+
+
+@admin_bp.route('/api/broadcast', methods=['POST'])
+def create_broadcast():
+    """Создать рассылку (сохранить как draft)"""
+    try:
+        data = request.json
+        logger.info(f"📢 Создание рассылки, данные: {data}")
+
+        if not data:
+            logger.error("❌ request.json вернул None")
+            return jsonify({"success": False, "message": "Неверный формат запроса (JSON не получен)"}), 400
+
+        title = data.get('title', '').strip()
+        message = data.get('message', '').strip()
+        created_by = getattr(request, 'username', None)
+
+        logger.info(f"📢 title='{title}', message длина={len(message)}, created_by={created_by}")
+
+        if not title or not message:
+            return jsonify({"success": False, "message": "Заголовок и сообщение обязательны"}), 400
+
+        broadcast_id = database.create_broadcast(title, message, created_by)
+        logger.info(f"📢 database.create_broadcast вернул: {broadcast_id}")
+
+        if broadcast_id:
+            return jsonify({
+                "success": True,
+                "message": "Рассылка создана",
+                "broadcast_id": broadcast_id
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Не удалось создать рассылку"
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Ошибка при создании рассылки: {e}", exc_info=True)
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/broadcast/<int:broadcast_id>/send', methods=['POST'])
+def send_broadcast(broadcast_id):
+    """Запустить отправку рассылки"""
+    import threading
+    import time
+
+    try:
+        # Проверяем статус рассылки
+        broadcast = database.get_broadcast(broadcast_id)
+        if not broadcast:
+            return jsonify({"success": False, "message": "Рассылка не найдена"}), 404
+
+        if broadcast['status'] != 'draft':
+            return jsonify({
+                "success": False,
+                "message": f"Нельзя отправить рассылку со статусом '{broadcast['status']}'"
+            }), 400
+
+        # Получаем Bitrix24 API
+        from src.api.b24_api import Bitrix24API
+
+        webhook_url = os.getenv('BITRIX24_WEBHOOK')
+        client_id = os.getenv('BITRIX24_BOT_CLIENT_ID')  # CLIENT_ID бота для imbot.message.add
+
+        logger.info(f"📢 Bitrix24 webhook: {webhook_url[:50] if webhook_url else 'НЕ ЗАДАН'}...")
+        logger.info(f"📢 Bitrix24 client_id: {client_id or 'НЕ ЗАДАН'}")
+
+        if not webhook_url:
+            return jsonify({
+                "success": False,
+                "message": "BITRIX24_WEBHOOK не настроен"
+            }), 500
+
+        if not client_id:
+            return jsonify({
+                "success": False,
+                "message": "BITRIX24_BOT_CLIENT_ID не настроен (требуется для отправки сообщений)"
+            }), 500
+
+        b24_api = Bitrix24API(webhook_url, client_id)
+
+        # Получаем список пользователей
+        users = b24_api.get_users(active_only=True)
+
+        if not users:
+            return jsonify({
+                "success": False,
+                "message": "Не удалось получить список пользователей"
+            }), 500
+
+        # Обновляем статус на sending
+        database.update_broadcast_status(
+            broadcast_id, 'sending',
+            total_recipients=len(users)
+        )
+
+        # Функция фоновой отправки
+        def send_broadcast_background(bid, api, users_list, msg):
+            sent = 0
+            failed = 0
+
+            for user in users_list:
+                # Проверяем флаг отмены перед каждой отправкой
+                current = database.get_broadcast(bid)
+                if not current or current['status'] == 'cancelled':
+                    break
+
+                user_id = user.get('ID')
+                user_name = f"{user.get('LAST_NAME', '')} {user.get('NAME', '')}".strip()
+
+                try:
+                    result = api.send_message_to_user(int(user_id), msg)
+
+                    if result.get('result'):
+                        database.add_broadcast_log(bid, user_id, user_name, 'sent')
+                        sent += 1
+                    else:
+                        error = result.get('error', 'Unknown error')
+                        database.add_broadcast_log(bid, user_id, user_name, 'failed', str(error))
+                        failed += 1
+
+                except Exception as e:
+                    database.add_broadcast_log(bid, user_id, user_name, 'failed', str(e))
+                    failed += 1
+
+                # Обновляем прогресс в БД
+                database.update_broadcast_progress(bid, sent, failed)
+
+                # Задержка между отправками
+                time.sleep(0.5)
+
+            # Финальный статус
+            current = database.get_broadcast(bid)
+            if current and current['status'] == 'cancelled':
+                final_status = 'cancelled'
+            elif failed == len(users_list):
+                final_status = 'failed'
+            else:
+                final_status = 'sent'
+
+            database.update_broadcast_status(
+                bid, final_status,
+                sent_count=sent,
+                failed_count=failed
+            )
+
+            # Удаляем из активных рассылок
+            if bid in active_broadcasts:
+                del active_broadcasts[bid]
+
+            logger.info(f"✅ Рассылка {bid} завершена: отправлено {sent}, ошибок {failed}")
+
+        # Запускаем фоновый поток
+        thread = threading.Thread(
+            target=send_broadcast_background,
+            args=(broadcast_id, b24_api, users, broadcast['message'])
+        )
+        thread.daemon = True
+        thread.start()
+
+        # Сохраняем ссылку на поток
+        active_broadcasts[broadcast_id] = thread
+
+        return jsonify({
+            "success": True,
+            "message": f"Рассылка запущена для {len(users)} пользователей",
+            "total": len(users)
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при запуске рассылки: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/broadcast/<int:broadcast_id>/cancel', methods=['POST'])
+def cancel_broadcast(broadcast_id):
+    """Отменить отправку рассылки"""
+    try:
+        broadcast = database.get_broadcast(broadcast_id)
+        if not broadcast:
+            return jsonify({"success": False, "message": "Рассылка не найдена"}), 404
+
+        if broadcast['status'] != 'sending':
+            return jsonify({
+                "success": False,
+                "message": f"Нельзя отменить рассылку со статусом '{broadcast['status']}'"
+            }), 400
+
+        # Устанавливаем флаг отмены (поток проверяет его)
+        database.update_broadcast_status(broadcast_id, 'cancelled')
+
+        return jsonify({
+            "success": True,
+            "message": "Рассылка отменена"
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при отмене рассылки: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/broadcast/<int:broadcast_id>', methods=['GET'])
+def get_broadcast_status(broadcast_id):
+    """Получить статус рассылки"""
+    try:
+        broadcast = database.get_broadcast(broadcast_id)
+        if not broadcast:
+            return jsonify({"success": False, "message": "Рассылка не найдена"}), 404
+
+        return jsonify({
+            "success": True,
+            "broadcast": broadcast
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении статуса рассылки: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/broadcast/<int:broadcast_id>', methods=['DELETE'])
+def delete_broadcast_route(broadcast_id):
+    """Удалить рассылку"""
+    try:
+        success = database.delete_broadcast(broadcast_id)
+
+        if success:
+            return jsonify({
+                "success": True,
+                "message": "Рассылка удалена"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Не удалось удалить рассылку"
+            }), 400
+
+    except Exception as e:
+        logger.error(f"Ошибка при удалении рассылки: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/broadcast/list', methods=['GET'])
+def list_broadcasts():
+    """Список рассылок"""
+    try:
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+
+        broadcasts = database.get_broadcasts(limit, offset)
+
+        return jsonify({
+            "success": True,
+            "broadcasts": broadcasts
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка рассылок: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/broadcast/<int:broadcast_id>/logs', methods=['GET'])
+def get_broadcast_logs_route(broadcast_id):
+    """Детальный лог отправки"""
+    try:
+        limit = int(request.args.get('limit', 500))
+        logs = database.get_broadcast_logs(broadcast_id, limit)
+
+        return jsonify({
+            "success": True,
+            "logs": logs
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении логов рассылки: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@admin_bp.route('/api/broadcast/users-count', methods=['GET'])
+def get_users_count():
+    """Получить количество пользователей"""
+    try:
+        from src.api.b24_api import Bitrix24API
+
+        webhook_url = os.getenv('BITRIX24_WEBHOOK')
+        client_id = os.getenv('BITRIX24_BOT_CLIENT_ID')
+
+        if not webhook_url:
+            return jsonify({
+                "success": False,
+                "message": "BITRIX24_WEBHOOK не настроен"
+            }), 500
+
+        # Для получения списка пользователей client_id не обязателен
+        b24_api = Bitrix24API(webhook_url, client_id)
+        users = b24_api.get_users(active_only=True)
+
+        return jsonify({
+            "success": True,
+            "count": len(users)
+        })
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении количества пользователей: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 # ========== PUBLIC ROUTES (временные заглушки) ==========
 
 @app.route('/')

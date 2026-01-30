@@ -300,6 +300,60 @@ class Bitrix24API:
         """
         return self._call('user.get', {'ID': user_id})
 
+    def get_users(self, active_only: bool = True) -> List[Dict]:
+        """
+        Получить список всех пользователей портала
+
+        Args:
+            active_only: Только активные пользователи (по умолчанию True)
+
+        Returns:
+            Список пользователей [{ID, NAME, LAST_NAME, ...}, ...]
+        """
+        all_users = []
+        start = 0
+
+        while True:
+            params = {'start': start}
+            if active_only:
+                params['FILTER'] = {'ACTIVE': True}
+
+            result = self._call('user.get', params)
+
+            if 'result' not in result:
+                break
+
+            users = result['result']
+            if not users:
+                break
+
+            all_users.extend(users)
+
+            # Bitrix24 возвращает по 50 записей, проверяем есть ли ещё
+            if len(users) < 50:
+                break
+            start += 50
+
+        return all_users
+
+    def send_message_to_user(self, user_id: int, message: str) -> Dict:
+        """
+        Отправить личное сообщение пользователю от имени бота
+
+        Args:
+            user_id: ID пользователя Bitrix24
+            message: Текст сообщения (поддерживает BB-code)
+
+        Returns:
+            Результат отправки с MESSAGE_ID или ошибка
+        """
+        params = {
+            'DIALOG_ID': user_id,  # Для личных сообщений DIALOG_ID = user_id
+            'MESSAGE': message
+        }
+
+        return self._call('imbot.message.add', params)
+
     # ========== HELPER METHODS ==========
 
     def create_keyboard(self, buttons: List[List[Dict]]) -> List[Dict]:

@@ -1,0 +1,123 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">2.3 Первоначальная настройка</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Доступ к веб-админке</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">После запуска контейнеров откройте в браузере:</p>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">http://IP-СЕРВЕРА:5000/admin/</code></pre>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Авторизация по умолчанию отсутствует. Для production рекомендуется настроить reverse proxy с аутентификацией.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Добавление первых FAQ</h2>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Перейдите в раздел <strong style="font-weight: bold;">FAQ</strong></li>
+    <li style="margin: 8px 0;">Нажмите кнопку <strong style="font-weight: bold;">"Добавить FAQ"</strong></li>
+    <li style="margin: 8px 0;">Заполните поля:
+        <ul style="padding-left: 24px; list-style-type: disc;">
+            <li style="margin: 8px 0;"><strong style="font-weight: bold;">Категория:</strong> например, "IT поддержка"</li>
+            <li style="margin: 8px 0;"><strong style="font-weight: bold;">Вопрос:</strong> "Как сбросить пароль?"</li>
+            <li style="margin: 8px 0;"><strong style="font-weight: bold;">Ответ:</strong> полный текст ответа</li>
+            <li style="margin: 8px 0;"><strong style="font-weight: bold;">Ключевые слова:</strong> пароль, сброс, забыл</li>
+        </ul>
+    </li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Сохранить"</strong></li>
+</ol>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Рекомендации по ключевым словам</h3>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Используйте базовую форму слов (лемму): "пароль", а не "паролей, пароли"</li>
+    <li style="margin: 8px 0;">Система автоматически распознает все формы слова</li>
+    <li style="margin: 8px 0;">Нажмите кнопку <strong style="font-weight: bold;">"Optimize"</strong> для автоматической оптимизации</li>
+    <li style="margin: 8px 0;">Добавляйте синонимы и сленг: "пароль, password, пассворд"</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Обучение поисковой системы</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">ВАЖНО:</strong> После добавления или изменения FAQ необходимо переобучить поисковую систему!</p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Перейдите в раздел <strong style="font-weight: bold;">Настройки</strong></li>
+    <li style="margin: 8px 0;">Нажмите кнопку <strong style="font-weight: bold;">"Retrain"</strong></li>
+    <li style="margin: 8px 0;">Дождитесь сообщения об успешном обновлении</li>
+</ol>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Без переобучения новые FAQ не будут найдены семантическим поиском!</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проверка работы бота</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Telegram</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Найдите бота в Telegram по имени (указано в BotFather)</li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">Start</strong> или отправьте <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">/start</code></li>
+    <li style="margin: 8px 0;">Задайте вопрос, который есть в FAQ</li>
+    <li style="margin: 8px 0;">Проверьте, что бот ответил правильно</li>
+</ol>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Bitrix24</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Откройте чат с ботом в Bitrix24</li>
+    <li style="margin: 8px 0;">Отправьте тестовый вопрос</li>
+    <li style="margin: 8px 0;">Убедитесь, что бот отвечает</li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Настройка порогов поиска</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">В разделе <strong style="font-weight: bold;">Настройки</strong> можно изменить пороги срабатывания:</p>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Параметр</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">По умолчанию</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Описание</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">exact_match_threshold</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">95</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Порог точного совпадения</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">keyword_match_threshold</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">70</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Порог ключевых слов</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">semantic_match_threshold</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">45</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Порог семантического поиска</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">fallback_message</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">-</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Сообщение при отсутствии ответа</td>
+        </tr>
+    </tbody>
+</table>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Рекомендация:</strong> Начните с настроек по умолчанию. Корректируйте пороги после анализа логов.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Настройка RAG (опционально)</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Если в .env включен RAG (<code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">RAG_ENABLED=true</code>), бот будет генерировать ответы через LLM:</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Объединяет информацию из нескольких FAQ</li>
+    <li style="margin: 8px 0;">Формирует связный естественный ответ</li>
+    <li style="margin: 8px 0;">Автоматически анонимизирует персональные данные</li>
+</ul>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Проверка работы RAG:</strong></p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Задайте вопрос боту</li>
+    <li style="margin: 8px 0;">В логах (раздел Логи) найдите запрос</li>
+    <li style="margin: 8px 0;">Если ответ сгенерирован через RAG, будет отмечено "🤖 RAG"</li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Чек-лист после настройки</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">☐ Добавлено минимум 5-10 FAQ</li>
+    <li style="margin: 8px 0;">☐ Нажата кнопка Retrain</li>
+    <li style="margin: 8px 0;">☐ Telegram бот отвечает на вопросы</li>
+    <li style="margin: 8px 0;">☐ Bitrix24 бот отвечает (если используется)</li>
+    <li style="margin: 8px 0;">☐ Логи записываются в админке</li>
+    <li style="margin: 8px 0;">☐ RAG работает (если включен)</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">3.1 Веб-панель администратора</li>
+    <li style="margin: 8px 0;">3.2 Управление FAQ</li>
+    <li style="margin: 8px 0;">3.3 Настройки поиска и RAG</li>
+</ul>

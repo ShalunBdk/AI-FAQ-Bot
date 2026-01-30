@@ -1,0 +1,105 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">4.3 Обновление системы</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Перед обновлением</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">☐ Создать резервную копию (см. 4.2)</li>
+    <li style="margin: 8px 0;">☐ Проверить changelog на breaking changes</li>
+    <li style="margin: 8px 0;">☐ Выбрать время с минимальной нагрузкой</li>
+    <li style="margin: 8px 0;">☐ Предупредить пользователей о возможном простое</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Процедура обновления</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">1. Проверка изменений</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">cd /path/to/FAQBot
+
+# Проверить текущую версию
+git log -1 --oneline
+
+# Получить информацию об обновлениях
+git fetch origin
+git log HEAD..origin/main --oneline</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">2. Создание бэкапа</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">cp data/faq_bot.db data/faq_bot.db.backup-$(date +%Y%m%d-%H%M)
+cp .env .env.backup</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">3. Остановка контейнеров</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">docker compose -f docker-compose.dev.yml down</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">4. Обновление кода</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">git pull origin main</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">5. Проверка .env на новые параметры</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Сравнить с шаблоном
+diff .env docker.env.production</code></pre>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Если есть новые параметры — добавьте их в <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">.env</code></p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">6. Запуск миграций (если есть)</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Проверить наличие новых миграций
+ls -la scripts/migrate_*.py
+
+# Запустить если нужно (читайте changelog)
+# docker compose run --rm web python scripts/migrate_xxx.py</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">7. Пересборка и запуск</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Пересборка образа
+docker compose -f docker-compose.dev.yml build
+
+# Запуск
+docker compose -f docker-compose.dev.yml up -d</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">8. Проверка работоспособности</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Проверить логи на ошибки
+docker logs faq-bot-web-1 --tail 50
+
+# Проверить статус
+docker ps</code></pre>
+
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Открыть веб-админку: <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">http://IP:5000/admin/</code></li>
+    <li style="margin: 8px 0;">Отправить тестовый вопрос боту</li>
+    <li style="margin: 8px 0;">Проверить логи в админке</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Откат при проблемах</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Остановить контейнеры
+docker compose -f docker-compose.dev.yml down
+
+# Вернуть код на предыдущую версию
+git checkout HEAD~1
+
+# Восстановить .env если изменялся
+cp .env.backup .env
+
+# Восстановить базу если изменялась
+cp data/faq_bot.db.backup-YYYYMMDD-HHMM data/faq_bot.db
+
+# Запустить заново
+docker compose -f docker-compose.dev.yml up -d</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Обновление Docker образов</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Периодически обновляйте базовые образы:</p>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Обновить базовый образ Python
+docker pull python:3.11-slim
+
+# Пересобрать с новым образом
+docker compose -f docker-compose.dev.yml build --no-cache
+docker compose -f docker-compose.dev.yml up -d</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Чек-лист после обновления</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">☐ Контейнеры запущены (<code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">docker ps</code>)</li>
+    <li style="margin: 8px 0;">☐ Веб-админка открывается</li>
+    <li style="margin: 8px 0;">☐ FAQ отображаются</li>
+    <li style="margin: 8px 0;">☐ Telegram бот отвечает</li>
+    <li style="margin: 8px 0;">☐ Bitrix24 бот отвечает (если используется)</li>
+    <li style="margin: 8px 0;">☐ Логи записываются</li>
+    <li style="margin: 8px 0;">☐ Нет ошибок в <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">docker logs</code></li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">4.2 Резервное копирование</li>
+    <li style="margin: 8px 0;">5.4 Ошибки Docker</li>
+</ul>

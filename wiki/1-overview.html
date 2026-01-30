@@ -1,0 +1,127 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">AI-FAQ-Bot: Общее описание системы</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Назначение</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">AI-FAQ-Bot — это интеллектуальный бот для автоматизации ответов на часто задаваемые вопросы сотрудников. Бот использует многоуровневый поиск и искусственный интеллект для точного подбора ответов.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Поддерживаемые платформы</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Telegram</strong> — бот для мессенджера Telegram</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Bitrix24</strong> — интеграция в корпоративный портал</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Web-админка</strong> — панель управления FAQ и аналитикой</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Архитектура системы</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">┌─────────────────────────────────────────────────────────┐
+│              Интерфейсы пользователей                   │
+├─────────────┬─────────────┬────────────────────────────┤
+│ Telegram    │ Bitrix24    │ Web Admin                  │
+│ (порт 5001) │ (порт 5002) │ (порт 5000)                │
+└──────┬──────┴──────┬──────┴─────────┬──────────────────┘
+       └─────────────┴────────────────┘
+                     │
+       ┌─────────────┴─────────────────┐
+       │   Ядро поиска + RAG           │
+       │   Каскадный поиск → LLM       │
+       │   Анонимизация персональных   │
+       │   данных перед отправкой      │
+       └─────────────┬─────────────────┘
+                     │
+       ┌─────────────┴─────────────────┐
+       │     База данных               │
+       │   SQLite + ChromaDB           │
+       └─────────────┬─────────────────┘
+                     │
+       ┌─────────────┴─────────────────┐
+       │   Внешние сервисы             │
+       │   OpenRouter API (LLM)        │
+       └───────────────────────────────┘</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Принцип работы: Каскадный поиск</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Система использует 4 уровня поиска с автоматическим переходом на следующий уровень при отсутствии результата:</p>
+
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Уровень</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Название</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Точность</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Описание</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">1</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">🎯 Точное совпадение</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">100%</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Запрос полностью совпадает с вопросом FAQ</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">2</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">🔑 Ключевые слова</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">70-95%</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Поиск по ключевым словам с лемматизацией</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">3</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">🧠 Семантический</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">45-70%</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Поиск по смыслу через нейросеть</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">4</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">❌ Fallback</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">0%</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Вежливый отказ, если ответ не найден</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">RAG (Retrieval-Augmented Generation)</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">RAG — это технология генерации ответов с помощью большой языковой модели (LLM). Когда бот находит подходящие FAQ, он может объединить информацию из нескольких источников в один связный ответ.</p>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Privacy First:</strong> Перед отправкой в LLM все персональные данные (email, телефоны, имена) автоматически анонимизируются, а после получения ответа — восстанавливаются.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Сетевые порты</h2>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Сервис</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Порт</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Назначение</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Web Admin</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">5000</code></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Панель администратора</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Telegram Bot</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">5001</code></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Telegram бот + reload endpoint</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Bitrix24 Bot</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">5002</code></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Bitrix24 webhook</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Технологический стек</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Язык:</strong> Python 3.11</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">База данных:</strong> SQLite (настройки, логи) + ChromaDB (векторный поиск)</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Семантическая модель:</strong> deepvk/USER2-base (оптимизирована для русского языка)</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">LLM:</strong> OpenRouter API (GPT-4, Claude, Gemini)</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Web-фреймворк:</strong> Flask</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Контейнеризация:</strong> Docker + Docker Compose</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">2.1 Требования и подготовка</li>
+    <li style="margin: 8px 0;">2.2 Установка через Docker</li>
+    <li style="margin: 8px 0;">3.1 Веб-панель администратора</li>
+</ul>

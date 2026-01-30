@@ -1,0 +1,213 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">3.3 Настройки поиска и RAG</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Пороги каскадного поиска</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Настройки находятся в разделе <strong style="font-weight: bold;">Настройки</strong> веб-админки.</p>
+
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Параметр</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">По умолчанию</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Диапазон</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Описание</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">exact_match_threshold</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">95</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">90-100</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Порог точного совпадения</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">keyword_match_threshold</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">70</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">50-90</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Порог ключевых слов</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">semantic_match_threshold</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">45</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">30-60</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Порог семантического поиска</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">keyword_search_max_words</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">5</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">3-10</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Макс. слов для keyword поиска</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">fallback_message</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">-</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">текст</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Сообщение при отсутствии ответа</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Когда менять пороги</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Много ложных срабатываний (бот отвечает не на тот вопрос)</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong> Повысить пороги</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">keyword_match_threshold</code>: 70 → 80</li>
+    <li style="margin: 8px 0;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">semantic_match_threshold</code>: 45 → 55</li>
+</ul>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Бот слишком часто говорит "не нашел ответ"</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong> Понизить пороги</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">keyword_match_threshold</code>: 70 → 60</li>
+    <li style="margin: 8px 0;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">semantic_match_threshold</code>: 45 → 40</li>
+</ul>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Рекомендация</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Начните с настроек по умолчанию. Анализируйте логи в течение недели, затем корректируйте при необходимости.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Настройки RAG</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">RAG (Retrieval-Augmented Generation) — генерация ответов через большую языковую модель. Настраивается в файле <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">.env</code>.</p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Основные параметры</h3>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Параметр</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Значение</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Описание</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">RAG_ENABLED</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">true/false</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Включение/выключение RAG</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">OPENROUTER_API_KEY</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">sk-or-v1-xxx</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">API ключ OpenRouter</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">OPENROUTER_MODEL</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">openai/gpt-4o-mini</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Модель LLM</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">RAG_MAX_TOKENS</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">1024</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Макс. токенов в ответе</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">RAG_TEMPERATURE</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">0.3</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Температура генерации (0.0-1.0)</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">RAG_MIN_RELEVANCE_SCORE</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">45.0</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Мин. confidence для RAG</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">RAG_MAX_CHUNKS</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">5</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Макс. FAQ в контексте</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Рекомендуемые модели</h3>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Модель</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Цена</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Качество</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Рекомендация</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">google/gemini-2.0-flash-001</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Бесплатно</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Хорошее</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Для тестирования</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">openai/gpt-4o-mini</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">$0.15/$0.60 за 1M</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Отличное</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Production</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">openai/gpt-4o</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">$2.50/$10.00 за 1M</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Премиум</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Сложные запросы</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">anthropic/claude-3.5-sonnet</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">$3.00/$15.00 за 1M</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Премиум</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Сложные запросы</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Настройки retry (повторные попытки)</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">При сетевых ошибках система автоматически повторяет запросы:</p>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Параметр</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">По умолчанию</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Описание</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">OPENROUTER_MAX_RETRIES</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">3</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Количество попыток</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">OPENROUTER_RETRY_DELAY</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">2</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Начальная задержка (сек)</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Privacy First: Анонимизация данных</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Перед отправкой в LLM автоматически анонимизируются:</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Email-адреса:</strong> ivan@example.com → [EMAIL_1]</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Телефоны:</strong> +7 (999) 123-45-67 → [PHONE_1]</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">BB-code ссылки:</strong> [URL=...]...[/URL] → [URL_1]</li>
+</ul>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">После получения ответа данные автоматически восстанавливаются.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Изменение настроек</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Пороги поиска (через веб-админку)</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Откройте раздел <strong style="font-weight: bold;">Настройки</strong></li>
+    <li style="margin: 8px 0;">Измените нужные значения</li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Сохранить"</strong></li>
+    <li style="margin: 8px 0;">Изменения применяются сразу</li>
+</ol>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">RAG настройки (через .env)</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Отредактируйте файл <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">.env</code></li>
+    <li style="margin: 8px 0;">Перезапустите контейнеры:<br>
+        <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">docker compose -f docker-compose.dev.yml restart</code>
+    </li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">3.2 Управление FAQ</li>
+    <li style="margin: 8px 0;">5.2 Проблемы с поиском</li>
+    <li style="margin: 8px 0;">5.3 RAG не работает</li>
+</ul>

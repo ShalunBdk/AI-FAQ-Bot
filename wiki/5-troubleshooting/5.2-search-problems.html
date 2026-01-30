@@ -1,0 +1,143 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">5.2 Проблемы с поиском</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: FAQ не находится</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 1: Не нажали Retrain</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Самая частая причина. После добавления/изменения FAQ необходимо переобучить систему.</p>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong></p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Откройте веб-админку → Настройки</li>
+    <li style="margin: 8px 0;">Нажмите кнопку <strong style="font-weight: bold;">"Retrain"</strong></li>
+    <li style="margin: 8px 0;">Дождитесь сообщения об успехе</li>
+</ol>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 2: Нет подходящих ключевых слов</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Диагностика:</strong></p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Откройте FAQ в админке</li>
+    <li style="margin: 8px 0;">Проверьте ключевые слова</li>
+    <li style="margin: 8px 0;">Сравните с тем, как формулирует вопрос пользователь</li>
+</ol>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong></p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Добавьте синонимы и разговорные формы</li>
+    <li style="margin: 8px 0;">Используйте базовые формы слов (леммы)</li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Optimize"</strong>, затем <strong style="font-weight: bold;">"Retrain"</strong></li>
+</ul>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 3: Порог слишком высокий</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Диагностика:</strong></p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Посмотрите в логах confidence найденного FAQ</li>
+    <li style="margin: 8px 0;">Если confidence близок к порогу, но ниже — нужно понизить порог</li>
+</ol>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong></p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Настройки → Понизить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">semantic_match_threshold</code></li>
+    <li style="margin: 8px 0;">Рекомендуемый диапазон: 40-50</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Бот отвечает не на тот вопрос</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 1: Пересечение ключевых слов</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Два или более FAQ имеют похожие ключевые слова.</p>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Диагностика:</strong></p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">В логах проверьте, какой FAQ был найден</li>
+    <li style="margin: 8px 0;">Сравните ключевые слова обоих FAQ</li>
+</ol>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong></p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Добавьте уникальные ключевые слова для каждого FAQ</li>
+    <li style="margin: 8px 0;">Удалите общие слова из одного из FAQ</li>
+    <li style="margin: 8px 0;">Повысьте порог <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">keyword_match_threshold</code></li>
+</ul>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина 2: Слишком низкие пороги</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Решение:</strong></p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Повысить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">keyword_match_threshold</code>: 70 → 80</li>
+    <li style="margin: 8px 0;">Повысить <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">semantic_match_threshold</code>: 45 → 55</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Слишком часто показывается disambiguation</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Бот часто предлагает выбрать из нескольких вариантов.</p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Причина</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Несколько FAQ имеют очень похожие ключевые слова и confidence.</p>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение</h3>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Сделайте ключевые слова более уникальными</li>
+    <li style="margin: 8px 0;">Объедините похожие FAQ в один (если это логично)</li>
+    <li style="margin: 8px 0;">Используйте RAG — он объединит информацию автоматически</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Семантический поиск не работает</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Симптомы</h3>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">В логах только exact и keyword, нет semantic</li>
+    <li style="margin: 8px 0;">Перефразированные вопросы не находят FAQ</li>
+</ul>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Диагностика</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Проверить наличие ChromaDB
+ls -la data/chroma_db/
+
+# Проверить логи на ошибки ChromaDB
+docker logs faq-bot-web-1 | grep -i "chroma\|embedding"</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение</h3>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Retrain"</strong> в настройках</li>
+    <li style="margin: 8px 0;">Если не помогло — пересоздайте ChromaDB:
+        <pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">rm -rf data/chroma_db/
+# Затем Retrain через админку</code></pre>
+    </li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Таблица диагностики</h2>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Симптом</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Вероятная причина</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Действие</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Новый FAQ не находится</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Не нажали Retrain</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нажать Retrain</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Низкий confidence</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Плохие ключевые слова</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Добавить синонимы</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Неправильный FAQ</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Пересечение keywords</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Уникализировать keywords</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Много "none"</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нет нужных FAQ</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Добавить FAQ</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нет semantic в логах</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Проблема с ChromaDB</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Retrain или пересоздать</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">3.2 Управление FAQ</li>
+    <li style="margin: 8px 0;">3.3 Настройки поиска и RAG</li>
+    <li style="margin: 8px 0;">4.1 Мониторинг и логи</li>
+</ul>

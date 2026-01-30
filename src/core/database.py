@@ -201,6 +201,37 @@ def init_database():
             )
         """)
 
+        # Таблица истории рассылок
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS broadcasts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                created_by TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                started_at TIMESTAMP,
+                finished_at TIMESTAMP,
+                status TEXT DEFAULT 'draft',
+                total_recipients INTEGER DEFAULT 0,
+                sent_count INTEGER DEFAULT 0,
+                failed_count INTEGER DEFAULT 0
+            )
+        """)
+
+        # Детальный лог отправки каждому пользователю
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS broadcast_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                broadcast_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                user_name TEXT,
+                status TEXT DEFAULT 'pending',
+                error_message TEXT,
+                sent_at TIMESTAMP,
+                FOREIGN KEY (broadcast_id) REFERENCES broadcasts(id)
+            )
+        """)
+
         # Индексы для оптимизации
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_timestamp ON query_logs(timestamp DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_user ON query_logs(user_id)")
@@ -213,6 +244,8 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_domain ON bitrix24_permissions(domain)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_domain_user ON bitrix24_permissions(domain, user_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bitrix24_permissions_role ON bitrix24_permissions(role)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_broadcasts_status ON broadcasts(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_broadcast_logs_broadcast ON broadcast_logs(broadcast_id)")
 
         print("OK: База данных инициализирована")
 
@@ -1681,3 +1714,304 @@ def get_failed_queries_for_period(period_id: int, limit: int = 100) -> List[Dict
     except Exception as e:
         print(f"Ошибка при получении неудачных запросов: {e}")
         return []
+
+
+# ============================================
+# Функции для работы с рассылками
+# ============================================
+
+def create_broadcast(title: str, message: str, created_by: str = None) -> Optional[int]:
+    """
+    Создать новую рассылку (черновик)
+
+    :param title: Заголовок рассылки
+    :param message: Текст сообщения (BB-code)
+    :param created_by: Кто создал рассылку
+    :return: ID созданной рассылки или None при ошибке
+    """
+    try:
+        print(f"📢 create_broadcast вызван: title='{title}', msg_len={len(message)}, created_by={created_by}")
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT INTO broadcasts (title, message, created_by, status)
+                   VALUES (?, ?, ?, 'draft')""",
+                (title, message, created_by)
+            )
+            broadcast_id = cursor.lastrowid
+            print(f"✅ Создана рассылка '{title}' (ID: {broadcast_id})")
+            return broadcast_id
+
+    except Exception as e:
+        import traceback
+        print(f"❌ Ошибка при создании рассылки: {e}")
+        traceback.print_exc()
+        return None
+
+
+def get_broadcasts(limit: int = 50, offset: int = 0) -> List[Dict]:
+    """
+    Получить список рассылок
+
+    :param limit: Количество записей
+    :param offset: Смещение
+    :return: Список рассылок
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, title, message, created_by, created_at, started_at,
+                       finished_at, status, total_recipients, sent_count, failed_count
+                FROM broadcasts
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (limit, offset))
+
+            broadcasts = []
+            for row in cursor.fetchall():
+                broadcasts.append({
+                    "id": row["id"],
+                    "title": row["title"],
+                    "message": row["message"],
+                    "created_by": row["created_by"],
+                    "created_at": convert_utc_to_utc7(row["created_at"]),
+                    "started_at": convert_utc_to_utc7(row["started_at"]) if row["started_at"] else None,
+                    "finished_at": convert_utc_to_utc7(row["finished_at"]) if row["finished_at"] else None,
+                    "status": row["status"],
+                    "total_recipients": row["total_recipients"],
+                    "sent_count": row["sent_count"],
+                    "failed_count": row["failed_count"]
+                })
+
+            return broadcasts
+
+    except Exception as e:
+        print(f"Ошибка при получении списка рассылок: {e}")
+        return []
+
+
+def get_broadcast(broadcast_id: int) -> Optional[Dict]:
+    """
+    Получить информацию о рассылке
+
+    :param broadcast_id: ID рассылки
+    :return: Информация о рассылке или None
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, title, message, created_by, created_at, started_at,
+                       finished_at, status, total_recipients, sent_count, failed_count
+                FROM broadcasts
+                WHERE id = ?
+            """, (broadcast_id,))
+
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row["id"],
+                    "title": row["title"],
+                    "message": row["message"],
+                    "created_by": row["created_by"],
+                    "created_at": convert_utc_to_utc7(row["created_at"]),
+                    "started_at": convert_utc_to_utc7(row["started_at"]) if row["started_at"] else None,
+                    "finished_at": convert_utc_to_utc7(row["finished_at"]) if row["finished_at"] else None,
+                    "status": row["status"],
+                    "total_recipients": row["total_recipients"],
+                    "sent_count": row["sent_count"],
+                    "failed_count": row["failed_count"]
+                }
+            return None
+
+    except Exception as e:
+        print(f"Ошибка при получении рассылки: {e}")
+        return None
+
+
+def update_broadcast_status(broadcast_id: int, status: str, **kwargs) -> bool:
+    """
+    Обновить статус рассылки
+
+    :param broadcast_id: ID рассылки
+    :param status: Новый статус (draft, sending, cancelled, sent, failed)
+    :param kwargs: Дополнительные поля для обновления (total_recipients, sent_count, failed_count)
+    :return: True если успешно, False при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Формируем запрос
+            updates = ["status = ?"]
+            params = [status]
+
+            if status == 'sending' and 'total_recipients' in kwargs:
+                updates.append("started_at = CURRENT_TIMESTAMP")
+                updates.append("total_recipients = ?")
+                params.append(kwargs['total_recipients'])
+
+            if status in ('sent', 'cancelled', 'failed'):
+                updates.append("finished_at = CURRENT_TIMESTAMP")
+
+            if 'sent_count' in kwargs:
+                updates.append("sent_count = ?")
+                params.append(kwargs['sent_count'])
+
+            if 'failed_count' in kwargs:
+                updates.append("failed_count = ?")
+                params.append(kwargs['failed_count'])
+
+            params.append(broadcast_id)
+
+            query = f"UPDATE broadcasts SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, params)
+
+            return cursor.rowcount > 0
+
+    except Exception as e:
+        print(f"Ошибка при обновлении статуса рассылки: {e}")
+        return False
+
+
+def update_broadcast_progress(broadcast_id: int, sent_count: int, failed_count: int) -> bool:
+    """
+    Обновить прогресс рассылки
+
+    :param broadcast_id: ID рассылки
+    :param sent_count: Количество отправленных
+    :param failed_count: Количество ошибок
+    :return: True если успешно, False при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE broadcasts SET sent_count = ?, failed_count = ? WHERE id = ?",
+                (sent_count, failed_count, broadcast_id)
+            )
+            return cursor.rowcount > 0
+
+    except Exception as e:
+        print(f"Ошибка при обновлении прогресса рассылки: {e}")
+        return False
+
+
+def add_broadcast_log(
+    broadcast_id: int,
+    user_id: int,
+    user_name: str,
+    status: str,
+    error_message: str = None
+) -> Optional[int]:
+    """
+    Добавить лог отправки
+
+    :param broadcast_id: ID рассылки
+    :param user_id: ID пользователя Bitrix24
+    :param user_name: Имя пользователя
+    :param status: Статус отправки (pending, sent, failed)
+    :param error_message: Сообщение об ошибке (если есть)
+    :return: ID лога или None при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            sent_at = "CURRENT_TIMESTAMP" if status == 'sent' else None
+
+            if sent_at:
+                cursor.execute(
+                    """INSERT INTO broadcast_logs
+                       (broadcast_id, user_id, user_name, status, error_message, sent_at)
+                       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
+                    (broadcast_id, user_id, user_name, status, error_message)
+                )
+            else:
+                cursor.execute(
+                    """INSERT INTO broadcast_logs
+                       (broadcast_id, user_id, user_name, status, error_message)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (broadcast_id, user_id, user_name, status, error_message)
+                )
+
+            return cursor.lastrowid
+
+    except Exception as e:
+        print(f"Ошибка при добавлении лога рассылки: {e}")
+        return None
+
+
+def get_broadcast_logs(broadcast_id: int, limit: int = 500) -> List[Dict]:
+    """
+    Получить логи рассылки
+
+    :param broadcast_id: ID рассылки
+    :param limit: Максимальное количество записей
+    :return: Список логов
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, user_id, user_name, status, error_message, sent_at
+                FROM broadcast_logs
+                WHERE broadcast_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+            """, (broadcast_id, limit))
+
+            logs = []
+            for row in cursor.fetchall():
+                logs.append({
+                    "id": row["id"],
+                    "user_id": row["user_id"],
+                    "user_name": row["user_name"],
+                    "status": row["status"],
+                    "error_message": row["error_message"],
+                    "sent_at": convert_utc_to_utc7(row["sent_at"]) if row["sent_at"] else None
+                })
+
+            return logs
+
+    except Exception as e:
+        print(f"Ошибка при получении логов рассылки: {e}")
+        return []
+
+
+def delete_broadcast(broadcast_id: int) -> bool:
+    """
+    Удалить рассылку (только draft или cancelled)
+
+    :param broadcast_id: ID рассылки
+    :return: True если успешно, False при ошибке
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем статус рассылки
+            cursor.execute("SELECT status FROM broadcasts WHERE id = ?", (broadcast_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                print(f"Рассылка {broadcast_id} не найдена")
+                return False
+
+            if row['status'] not in ('draft', 'cancelled'):
+                print(f"Нельзя удалить рассылку со статусом '{row['status']}'")
+                return False
+
+            # Удаляем логи
+            cursor.execute("DELETE FROM broadcast_logs WHERE broadcast_id = ?", (broadcast_id,))
+
+            # Удаляем рассылку
+            cursor.execute("DELETE FROM broadcasts WHERE id = ?", (broadcast_id,))
+
+            print(f"✅ Рассылка {broadcast_id} удалена")
+            return True
+
+    except Exception as e:
+        print(f"Ошибка при удалении рассылки: {e}")
+        return False

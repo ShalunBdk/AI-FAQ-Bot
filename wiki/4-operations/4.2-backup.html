@@ -1,0 +1,114 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">4.2 Резервное копирование</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Что нужно бэкапить</h2>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Файл/Папка</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Содержимое</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Критичность</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">data/faq_bot.db</code></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">SQLite: FAQ, логи, настройки</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold; color: #cf222e;">Критично</strong></td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">data/chroma_db/</code></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">ChromaDB: векторный индекс</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Можно пересоздать (Retrain)</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">.env</code></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Конфигурация, токены</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold; color: #cf222e;">Критично</strong></td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Скрипт резервного копирования</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Создайте файл <code style="background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace; font-size: 14px;">backup.sh</code>:</p>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">#!/bin/bash
+
+# Настройки
+BACKUP_DIR="/backup/faq-bot"
+PROJECT_DIR="/path/to/FAQBot"
+DATE=$(date +%Y-%m-%d_%H-%M)
+BACKUP_NAME="faq-bot-backup-$DATE"
+
+# Создание папки для бэкапа
+mkdir -p "$BACKUP_DIR/$BACKUP_NAME"
+
+# Копирование файлов
+cp "$PROJECT_DIR/data/faq_bot.db" "$BACKUP_DIR/$BACKUP_NAME/"
+cp "$PROJECT_DIR/.env" "$BACKUP_DIR/$BACKUP_NAME/"
+cp -r "$PROJECT_DIR/data/chroma_db" "$BACKUP_DIR/$BACKUP_NAME/" 2>/dev/null || true
+
+# Архивация
+cd "$BACKUP_DIR"
+tar -czf "$BACKUP_NAME.tar.gz" "$BACKUP_NAME"
+rm -rf "$BACKUP_NAME"
+
+# Удаление старых бэкапов (старше 30 дней)
+find "$BACKUP_DIR" -name "*.tar.gz" -mtime +30 -delete
+
+echo "Backup created: $BACKUP_DIR/$BACKUP_NAME.tar.gz"</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Настройка прав</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">chmod +x backup.sh</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Автоматизация через cron</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Редактирование crontab
+crontab -e
+
+# Добавить строку (бэкап каждый день в 3:00)
+0 3 * * * /path/to/backup.sh >> /var/log/faq-bot-backup.log 2>&1</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Восстановление из бэкапа</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">1. Остановка контейнеров</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">cd /path/to/FAQBot
+docker compose -f docker-compose.dev.yml down</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">2. Распаковка бэкапа</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">cd /backup/faq-bot
+tar -xzf faq-bot-backup-2024-01-15_03-00.tar.gz</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">3. Восстановление файлов</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Бэкап текущих файлов (на всякий случай)
+mv /path/to/FAQBot/data/faq_bot.db /path/to/FAQBot/data/faq_bot.db.old
+
+# Восстановление
+cp faq-bot-backup-2024-01-15_03-00/faq_bot.db /path/to/FAQBot/data/
+cp faq-bot-backup-2024-01-15_03-00/.env /path/to/FAQBot/</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">4. Запуск и переобучение</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">cd /path/to/FAQBot
+docker compose -f docker-compose.dev.yml up -d
+
+# Дождаться запуска, затем Retrain через веб-админку
+# или через API:
+curl -X POST http://localhost:5000/admin/retrain</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Рекомендации</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Частота:</strong> Ежедневно для production</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Хранение:</strong> Минимум 7 дней, рекомендуется 30 дней</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Проверка:</strong> Раз в месяц проверяйте восстановление на тестовом сервере</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">Удаленное хранение:</strong> Копируйте бэкапы на отдельный сервер или в облако</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Быстрый бэкап вручную</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Создать копию базы данных
+cp data/faq_bot.db data/faq_bot.db.backup-$(date +%Y%m%d)
+
+# Проверить размер
+ls -lh data/*.db*</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">4.3 Обновление системы</li>
+    <li style="margin: 8px 0;">5.4 Ошибки Docker</li>
+</ul>

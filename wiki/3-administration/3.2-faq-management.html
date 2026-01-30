@@ -1,0 +1,171 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">3.2 Управление FAQ</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Структура FAQ</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Каждый FAQ состоит из четырех полей:</p>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Поле</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Описание</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Пример</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold;">Категория</strong></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Группировка для удобства</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">IT поддержка, Бухгалтерия, HR</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold;">Вопрос</strong></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Типичная формулировка вопроса</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Как сбросить пароль?</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold;">Ответ</strong></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Полный текст ответа</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Для сброса пароля обратитесь...</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;"><strong style="font-weight: bold;">Ключевые слова</strong></td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Слова для поиска (через запятую)</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">пароль, сброс, забыл, password</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Добавление FAQ</h2>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Перейдите в раздел <strong style="font-weight: bold;">FAQ</strong></li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Добавить FAQ"</strong></li>
+    <li style="margin: 8px 0;">Заполните все поля</li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Optimize"</strong> для оптимизации ключевых слов</li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Сохранить"</strong></li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">ВАЖНО:</strong> После добавления нажмите <strong style="font-weight: bold;">"Retrain"</strong> в настройках!</li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Правила составления ключевых слов</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Используйте базовые формы слов (леммы)</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Система автоматически распознает все формы слова благодаря лемматизации:</p>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">❌ Неправильно</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">✅ Правильно</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">претензию, претензии, претензией, претензия</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">претензия</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">заказов, заказа, заказы, заказ</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">заказ</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">доставки, доставку, доставкой</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">доставка</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Добавляйте синонимы и сленг</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">пароль, password, пассворд, логин
+компьютер, комп, пк, ноутбук
+принтер, печать, мфу</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Кнопка "Optimize"</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Нажмите эту кнопку для автоматической оптимизации:</p>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Приведение слов к базовой форме</li>
+    <li style="margin: 8px 0;">Удаление дубликатов</li>
+    <li style="margin: 8px 0;">Удаление лишних пробелов</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Редактирование FAQ</h2>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Найдите FAQ в списке</li>
+    <li style="margin: 8px 0;">Нажмите на него для открытия формы редактирования</li>
+    <li style="margin: 8px 0;">Внесите изменения</li>
+    <li style="margin: 8px 0;">Нажмите <strong style="font-weight: bold;">"Сохранить"</strong></li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">ВАЖНО:</strong> Нажмите <strong style="font-weight: bold;">"Retrain"</strong> в настройках!</li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Удаление FAQ</h2>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Откройте FAQ для редактирования</li>
+    <li style="margin: 8px 0;">Нажмите кнопку <strong style="font-weight: bold;">"Удалить"</strong></li>
+    <li style="margin: 8px 0;">Подтвердите удаление</li>
+    <li style="margin: 8px 0;"><strong style="font-weight: bold;">ВАЖНО:</strong> Нажмите <strong style="font-weight: bold;">"Retrain"</strong> в настройках!</li>
+</ol>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Переобучение (Retrain)</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e; background-color: #fff8c5; padding: 12px; border-left: 4px solid #d4a72c;"><strong style="font-weight: bold;">⚠️ КРИТИЧЕСКИ ВАЖНО:</strong> После ЛЮБЫХ изменений в FAQ необходимо нажать кнопку "Retrain" в разделе Настройки. Без этого новые/измененные FAQ не будут найдены семантическим поиском!</p>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Что делает Retrain:</p>
+<ol style="padding-left: 24px; list-style-type: decimal;">
+    <li style="margin: 8px 0;">Пересоздает векторную базу ChromaDB</li>
+    <li style="margin: 8px 0;">Индексирует все FAQ для семантического поиска</li>
+    <li style="margin: 8px 0;">Уведомляет ботов о необходимости перезагрузки</li>
+</ol>
+
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;"><strong style="font-weight: bold;">Время выполнения:</strong> обычно 5-30 секунд в зависимости от количества FAQ.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Рекомендации по содержанию</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Вопрос</h3>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Формулируйте как реальный вопрос пользователя</li>
+    <li style="margin: 8px 0;">Избегайте технического жаргона</li>
+    <li style="margin: 8px 0;">Один FAQ = один конкретный вопрос</li>
+</ul>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Ответ</h3>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Давайте полный, самодостаточный ответ</li>
+    <li style="margin: 8px 0;">Указывайте контакты (телефоны, email)</li>
+    <li style="margin: 8px 0;">Добавляйте пошаговые инструкции при необходимости</li>
+    <li style="margin: 8px 0;">Поддерживается базовое форматирование</li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Типичные ошибки</h2>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Ошибка</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Последствие</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Решение</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Не нажали Retrain</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">FAQ не находится</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нажать Retrain в настройках</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Много форм одного слова</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Засорение ключевых слов</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нажать Optimize</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Слишком общие слова</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Ложные срабатывания</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Использовать уникальные слова</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Несколько вопросов в одном FAQ</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Неточные ответы</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Разбить на отдельные FAQ</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">3.1 Веб-панель администратора</li>
+    <li style="margin: 8px 0;">3.3 Настройки поиска и RAG</li>
+    <li style="margin: 8px 0;">5.2 Проблемы с поиском</li>
+</ul>

@@ -1,0 +1,180 @@
+<h1 style="font-size: 32px; font-weight: bold; margin: 11px 0;">5.4 Ошибки Docker</h1>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Container exits immediately</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Диагностика</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Проверить статус
+docker ps -a
+
+# Посмотреть причину остановки
+docker logs faq-bot-web-1</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Типичные причины</h3>
+<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+    <thead>
+        <tr style="background-color: #f6f8fa;">
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Ошибка в логах</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Причина</th>
+            <th style="border: 1px solid #d0d7de; padding: 8px 12px; text-align: left;">Решение</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">ModuleNotFoundError</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Не установлены зависимости</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Пересобрать образ</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">FileNotFoundError: .env</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нет файла .env</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Создать .env</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">TELEGRAM_TOKEN not set</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нет токена в .env</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Добавить токен</td>
+        </tr>
+        <tr>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">PermissionError</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">Нет прав на data/</td>
+            <td style="border: 1px solid #d0d7de; padding: 8px 12px;">chmod 777 data/</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Port already in use</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">Error: bind: address already in use</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение (Linux)</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Найти процесс на порту 5000
+sudo lsof -i :5000
+
+# Или
+sudo netstat -tlnp | grep 5000
+
+# Завершить процесс
+sudo kill -9 PID</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение (Windows)</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Найти процесс
+netstat -ano | findstr :5000
+
+# Завершить процесс (PID из последнего столбца)
+taskkill /PID 12345 /F</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Out of disk space</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">Error: no space left on device</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Диагностика</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Проверить место на диске
+df -h
+
+# Проверить использование Docker
+docker system df</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Очистить неиспользуемые образы и контейнеры
+docker system prune -a
+
+# Очистить build cache
+docker builder prune
+
+# Очистить volumes (ОСТОРОЖНО - удалит данные!)
+# docker volume prune</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Cannot connect to Docker daemon</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">Cannot connect to the Docker daemon. Is the docker daemon running?</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение (Linux)</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Запустить Docker
+sudo systemctl start docker
+
+# Проверить статус
+sudo systemctl status docker
+
+# Включить автозапуск
+sudo systemctl enable docker</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение (Windows/Mac)</h3>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e;">Запустите Docker Desktop из меню приложений.</p>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Permission denied</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">PermissionError: [Errno 13] Permission denied: '/app/data/faq_bot.db'</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Исправить права на папку data
+chmod -R 777 data/
+
+# Или сменить владельца
+sudo chown -R $USER:$USER data/</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Image build fails</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Очистка и пересборка</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Полная пересборка без кэша
+docker compose -f docker-compose.dev.yml build --no-cache
+
+# Если ошибка с pip
+docker compose -f docker-compose.dev.yml build --no-cache --pull</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Проблема: Container uses too much memory</h2>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Диагностика</h3>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">docker stats</code></pre>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Нормальное использование</h3>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">После загрузки модели: 1.5-2.5 GB RAM</li>
+    <li style="margin: 8px 0;">В простое: 500-800 MB RAM</li>
+</ul>
+
+<h3 style="font-size: 19px; font-weight: bold; margin: 14px 0;">Решение при нехватке памяти</h3>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">Добавить RAM на сервер</li>
+    <li style="margin: 8px 0;">Добавить swap:
+        <pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;">sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile</code></pre>
+    </li>
+</ul>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Полный сброс Docker</h2>
+<p style="margin: 16px 0; line-height: 1.6; color: #24292e; background-color: #ffebe9; padding: 12px; border-left: 4px solid #cf222e;"><strong style="font-weight: bold;">⚠️ ВНИМАНИЕ:</strong> Это удалит ВСЕ данные Docker, включая базу данных!</p>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># ПЕРЕД ЭТИМ сделайте бэкап data/faq_bot.db!
+
+# Остановить все контейнеры
+docker compose -f docker-compose.dev.yml down
+
+# Удалить все
+docker system prune -a --volumes
+
+# Пересобрать и запустить
+docker compose -f docker-compose.dev.yml build
+docker compose -f docker-compose.dev.yml up -d</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Полезные команды</h2>
+<pre style="background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow: auto; margin: 16px 0;"><code style="font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #24292e; background-color: unset;"># Список контейнеров
+docker ps -a
+
+# Логи в реальном времени
+docker logs -f faq-bot-web-1
+
+# Войти в контейнер
+docker exec -it faq-bot-web-1 bash
+
+# Перезапуск
+docker compose -f docker-compose.dev.yml restart
+
+# Остановка
+docker compose -f docker-compose.dev.yml down
+
+# Информация об образе
+docker images</code></pre>
+
+<h2 style="font-size: 24px; font-weight: bold; margin: 12px 0;">Связанные статьи</h2>
+<ul style="padding-left: 24px; list-style-type: disc;">
+    <li style="margin: 8px 0;">2.2 Установка через Docker</li>
+    <li style="margin: 8px 0;">4.3 Обновление системы</li>
+    <li style="margin: 8px 0;">5.1 Бот не отвечает</li>
+</ul>
