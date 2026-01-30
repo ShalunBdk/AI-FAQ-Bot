@@ -1252,6 +1252,16 @@ def reload_chromadb_endpoint():
 def reload_settings_endpoint():
     """Endpoint для перезагрузки настроек бота (вызывается из web_admin.py)"""
     success = reload_bot_settings()
+
+    # Перезагружаем промпт LLM сервиса (если он инициализирован)
+    global llm_service
+    if llm_service is not None:
+        try:
+            llm_service.reload_prompt()
+            logger.info("✅ Промпт LLM сервиса перезагружен")
+        except Exception as e:
+            logger.error(f"❌ Ошибка перезагрузки промпта LLM: {e}")
+
     return jsonify({'success': success})
 
 
