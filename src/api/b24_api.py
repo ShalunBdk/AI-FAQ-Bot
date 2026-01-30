@@ -516,6 +516,11 @@ class Bitrix24Event:
         return self.event_type == 'ONAPPINSTALL'
 
     @property
+    def is_user_add(self) -> bool:
+        """Событие - добавление нового пользователя"""
+        return self.event_type == 'ONUSERADD'
+
+    @property
     def is_command(self) -> bool:
         """Событие - команда от пользователя (кнопка или текст)"""
         return self.event_type == 'ONIMCOMMANDADD'
@@ -621,3 +626,52 @@ class Bitrix24Event:
     def access_token(self) -> str:
         """Access token для API вызовов"""
         return self.auth.get('access_token', '')
+
+    # ========== ONUSERADD EVENT PROPERTIES ==========
+
+    @property
+    def new_user_id(self) -> Optional[int]:
+        """ID нового пользователя (для события ONUSERADD)"""
+        if self.is_user_add:
+            # Данные могут быть напрямую в data или в data.FIELDS
+            user_id_str = self.data.get('ID') or self.data.get('FIELDS', {}).get('ID')
+            try:
+                return int(user_id_str) if user_id_str else None
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    @property
+    def new_user_name(self) -> str:
+        """Полное имя нового пользователя (для события ONUSERADD)"""
+        if self.is_user_add:
+            # Данные могут быть напрямую в data или в data.FIELDS
+            fields = self.data if 'NAME' in self.data else self.data.get('FIELDS', {})
+            first_name = fields.get('NAME', '')
+            last_name = fields.get('LAST_NAME', '')
+
+            if last_name and first_name:
+                return f"{last_name} {first_name}"
+            elif first_name:
+                return first_name
+            elif last_name:
+                return last_name
+            else:
+                return f"Пользователь #{self.new_user_id}"
+        return ""
+
+    @property
+    def new_user_email(self) -> Optional[str]:
+        """Email нового пользователя (для события ONUSERADD)"""
+        if self.is_user_add:
+            fields = self.data if 'EMAIL' in self.data else self.data.get('FIELDS', {})
+            return fields.get('EMAIL')
+        return None
+
+    @property
+    def new_user_active(self) -> bool:
+        """Активен ли новый пользователь (для события ONUSERADD)"""
+        if self.is_user_add:
+            fields = self.data if 'ACTIVE' in self.data else self.data.get('FIELDS', {})
+            return fields.get('ACTIVE') == 'Y'
+        return False

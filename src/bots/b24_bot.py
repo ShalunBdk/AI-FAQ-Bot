@@ -343,6 +343,78 @@ def register_bot_commands(api: Bitrix24API):
 
 # ========== ОБРАБОТЧИКИ КОМАНД ==========
 
+def handle_new_user_welcome(event: Bitrix24Event, api: Bitrix24API):
+    """
+    Отправка приветственного сообщения новому пользователю Bitrix24
+
+    Вызывается при событии ONUSERADD (добавление нового сотрудника)
+    """
+    # Проверяем, включена ли функция приветствия
+    welcome_enabled = bot_settings_cache.get("new_user_welcome_enabled", "false") == "true"
+    if not welcome_enabled:
+        logger.debug(f"⏭️ Приветствие новых пользователей отключено в настройках")
+        return
+
+    new_user_id = event.new_user_id
+    new_user_name = event.new_user_name
+
+    if not new_user_id:
+        logger.warning(f"⚠️ Не удалось получить ID нового пользователя из события ONUSERADD")
+        return
+
+    # Проверяем, что пользователь активен
+    if not event.new_user_active:
+        logger.debug(f"⏭️ Пользователь {new_user_id} не активен, пропускаем приветствие")
+        return
+
+    logger.info(f"👋 Новый пользователь: {new_user_name} (ID: {new_user_id})")
+
+    # Получаем текст приветствия из настроек
+    welcome_message = bot_settings_cache.get(
+        "new_user_welcome_message",
+        database.DEFAULT_BOT_SETTINGS.get("new_user_welcome_message", "Добро пожаловать!")
+    )
+
+    # Логируем отправку приветствия
+    query_log_id = database.add_query_log(
+        user_id=new_user_id,
+        username=new_user_name,
+        query_text="[Автоматическое приветствие нового пользователя]",
+        platform='bitrix24_welcome'
+    )
+
+    try:
+        # Отправляем сообщение новому пользователю
+        result = api.send_message_to_user(new_user_id, welcome_message)
+
+        if result.get('result'):
+            logger.info(f"✅ Приветствие отправлено новому пользователю {new_user_name} (ID: {new_user_id})")
+
+            # Логируем успешную отправку
+            database.add_answer_log(
+                query_log_id=query_log_id,
+                faq_id=None,
+                similarity_score=100.0,
+                answer_shown=welcome_message,
+                search_level='direct'
+            )
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            logger.error(f"❌ Ошибка отправки приветствия пользователю {new_user_id}: {error_msg}")
+
+            # Логируем ошибку
+            database.add_answer_log(
+                query_log_id=query_log_id,
+                faq_id=None,
+                similarity_score=0.0,
+                answer_shown=f"Ошибка отправки: {error_msg}",
+                search_level='none'
+            )
+
+    except Exception as e:
+        logger.error(f"❌ Исключение при отправке приветствия: {e}", exc_info=True)
+
+
 def handle_start(event: Bitrix24Event, api: Bitrix24API):
     """Обработка команды /start или /помощь"""
     logger.info(f"📩 Обработка команды /start от пользователя ID: {event.user_id}, Dialog ID: {event.dialog_id}")
@@ -964,6 +1036,9 @@ def webhook_handler():
             logger.info(f"🗑️ Бот удален из портала {event.domain}")
         elif event.is_app_install:
             logger.info(f"📦 Приложение установлено на портал {event.domain}")
+        elif event.is_user_add:
+            logger.info(f"👤 Новый пользователь добавлен: {event.new_user_name} (ID: {event.new_user_id})")
+            handle_new_user_welcome(event, b24_api)
         else:
             logger.warning(f"⚠️ Неизвестный тип события: {event_data.get('event')}")
 

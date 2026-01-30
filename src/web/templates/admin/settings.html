@@ -426,6 +426,47 @@
                     </div>
                 </div>
 
+                <!-- Приветствие новых пользователей Bitrix24 -->
+                <div class="bg-white dark:bg-[#182431] rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 class="text-gray-800 dark:text-white text-xl font-bold mb-2 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">person_add</span>
+                        Приветствие новых пользователей (Bitrix24)
+                    </h3>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                        Автоматическая отправка приветственного сообщения новым сотрудникам при их добавлении в Bitrix24.
+                        Требует подписку на событие <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">ONUSERADD</code> через исходящий вебхук.
+                    </p>
+
+                    <!-- Переключатель включения -->
+                    <div class="mb-4">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="new_user_welcome_enabled" class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <span class="flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-sm">toggle_on</span>
+                                    Включить автоматическое приветствие
+                                </span>
+                            </span>
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1 ml-8">Когда включено, бот будет отправлять приветственное сообщение всем новым пользователям.</p>
+                    </div>
+
+                    <!-- Текст приветствия -->
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <span class="flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">chat</span>
+                                Текст приветственного сообщения (BB-code)
+                            </span>
+                        </label>
+                        <textarea id="new_user_welcome_message" rows="8" class="form-input w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-mono text-sm" placeholder="Введите текст приветствия..."></textarea>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Используйте BB-code для форматирования: <code>[b]жирный[/b]</code>, <code>[i]курсив[/i]</code>, <code>[url=ссылка]текст[/url]</code>
+                        </p>
+                    </div>
+
+                </div>
+
                 <!-- Действия -->
                 <div class="flex gap-3 justify-end pt-4">
                     <button type="button" onclick="resetSettings()" class="flex items-center gap-2 px-5 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
@@ -571,6 +612,10 @@
                 document.getElementById("show_similarity").checked = settings.show_similarity !== "false";
                 document.getElementById("fallback_message").value = settings.fallback_message || "";
 
+                // Приветствие новых пользователей Bitrix24
+                document.getElementById("new_user_welcome_enabled").checked = settings.new_user_welcome_enabled === "true";
+                document.getElementById("new_user_welcome_message").value = settings.new_user_welcome_message || "";
+
                 initWysiwygEditors();
 
                 if (editors["start_message"]) {
@@ -657,6 +702,10 @@
             keyword_search_max_words: document.getElementById("keyword_search_max_words").value,
             show_similarity: document.getElementById("show_similarity").checked ? "true" : "false",
             fallback_message: document.getElementById("fallback_message").value,
+
+            // Приветствие новых пользователей Bitrix24
+            new_user_welcome_enabled: document.getElementById("new_user_welcome_enabled").checked ? "true" : "false",
+            new_user_welcome_message: document.getElementById("new_user_welcome_message").value,
         };
 
         try {
