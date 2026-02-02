@@ -137,6 +137,7 @@ TELEGRAM_BOT_RELOAD_SETTINGS_URL = f"http://{TELEGRAM_BOT_HOST}:5001/reload-sett
 
 BITRIX24_BOT_RELOAD_URL = f"http://{BITRIX24_BOT_HOST}:5002/api/reload-chromadb"
 BITRIX24_BOT_RELOAD_SETTINGS_URL = f"http://{BITRIX24_BOT_HOST}:5002/api/reload-settings"
+BITRIX24_BOT_MARK_WELCOMED_URL = f"http://{BITRIX24_BOT_HOST}:5002/api/mark-welcomed"
 
 # Список всех ботов для уведомления
 ALL_BOT_RELOAD_URLS = [TELEGRAM_BOT_RELOAD_URL, BITRIX24_BOT_RELOAD_URL]
@@ -1722,6 +1723,23 @@ def send_broadcast(broadcast_id):
                 "success": False,
                 "message": "Не удалось получить список пользователей"
             }), 500
+
+        # Помечаем пользователей как "приветствованных" в боте
+        # чтобы предотвратить дублирование приветствий при ONIMBOTJOINCHAT
+        try:
+            user_ids = [int(u.get('ID')) for u in users if u.get('ID')]
+            response = requests.post(
+                BITRIX24_BOT_MARK_WELCOMED_URL,
+                json={'user_ids': user_ids},
+                timeout=10
+            )
+            if response.ok:
+                logger.info(f"✅ Помечено {len(user_ids)} пользователей для предотвращения дублирования приветствий")
+            else:
+                logger.warning(f"⚠️ Не удалось пометить пользователей: {response.text}")
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при маркировке пользователей: {e}")
+            # Не прерываем рассылку из-за этой ошибки
 
         # Обновляем статус на sending
         database.update_broadcast_status(

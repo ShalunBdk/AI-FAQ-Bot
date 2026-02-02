@@ -77,6 +77,11 @@ b24_api = None  # Инициализируется при получении web
 # Кэш настроек бота
 bot_settings_cache = {}
 
+# Кэш недавно приветствованных пользователей (защита от дублирования)
+# Формат: {user_id: timestamp}
+recently_welcomed_users: Dict[int, float] = {}
+WELCOME_COOLDOWN_SECONDS = 60  # Не отправлять повторное приветствие в течение 60 секунд
+
 # RAG настройки
 RAG_ENABLED = os.getenv('RAG_ENABLED', 'true').lower() == 'true'
 RAG_MAX_TOKENS = int(os.getenv('RAG_MAX_TOKENS', '1024'))
@@ -390,6 +395,10 @@ def handle_new_user_welcome(event: Bitrix24Event, api: Bitrix24API):
         if result.get('result'):
             logger.info(f"✅ Приветствие отправлено новому пользователю {new_user_name} (ID: {new_user_id})")
 
+            # Запоминаем, что пользователю уже отправлено приветствие
+            # (защита от дублирования при последующем ONIMBOTJOINCHAT)
+            recently_welcomed_users[new_user_id] = time.time()
+
             # Логируем успешную отправку
             database.add_answer_log(
                 query_log_id=query_log_id,
@@ -418,6 +427,18 @@ def handle_new_user_welcome(event: Bitrix24Event, api: Bitrix24API):
 def handle_start(event: Bitrix24Event, api: Bitrix24API):
     """Обработка команды /start или /помощь"""
     logger.info(f"📩 Обработка команды /start от пользователя ID: {event.user_id}, Dialog ID: {event.dialog_id}")
+
+    # Проверяем, не было ли пользователю недавно отправлено приветствие (защита от дублирования)
+    user_id = event.user_id
+    if user_id in recently_welcomed_users:
+        welcome_time = recently_welcomed_users[user_id]
+        elapsed = time.time() - welcome_time
+        if elapsed < WELCOME_COOLDOWN_SECONDS:
+            logger.debug(f"⏭️ Пропуск приветствия для пользователя {user_id} - уже приветствован {elapsed:.1f}с назад")
+            return
+        else:
+            # Удаляем устаревшую запись
+            del recently_welcomed_users[user_id]
 
     # Получаем текст приветствия из настроек
     message = bot_settings_cache.get("start_message", database.DEFAULT_BOT_SETTINGS["start_message"])
@@ -1263,6 +1284,40 @@ def reload_settings_endpoint():
             logger.error(f"❌ Ошибка перезагрузки промпта LLM: {e}")
 
     return jsonify({'success': success})
+
+
+@app.route('/api/mark-welcomed', methods=['POST'])
+def mark_welcomed_endpoint():
+    """
+    Endpoint для маркировки пользователей как 'приветствованных'.
+    Используется перед рассылкой, чтобы предотвратить дублирование приветствий.
+
+    Body: {"user_ids": [123, 456, 789]}
+    """
+    try:
+        data = request.get_json() or {}
+        user_ids = data.get('user_ids', [])
+
+        if not user_ids:
+            return jsonify({'success': False, 'error': 'user_ids is required'}), 400
+
+        current_time = time.time()
+        marked_count = 0
+
+        for user_id in user_ids:
+            try:
+                uid = int(user_id)
+                recently_welcomed_users[uid] = current_time
+                marked_count += 1
+            except (ValueError, TypeError):
+                logger.warning(f"⚠️ Некорректный user_id: {user_id}")
+
+        logger.info(f"✅ Помечено {marked_count} пользователей как приветствованных (для рассылки)")
+        return jsonify({'success': True, 'marked': marked_count})
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в mark_welcomed_endpoint: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/', methods=['GET'])
