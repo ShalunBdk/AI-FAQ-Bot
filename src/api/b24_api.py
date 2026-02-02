@@ -673,5 +673,7 @@ class Bitrix24Event:
         """Активен ли новый пользователь (для события ONUSERADD)"""
         if self.is_user_add:
             fields = self.data if 'ACTIVE' in self.data else self.data.get('FIELDS', {})
-            return fields.get('ACTIVE') == 'Y'
+            # Bitrix24 может присылать активность в разных форматах: "Y", "1", True
+            active_value = fields.get('ACTIVE')
+            return active_value in ('Y', '1', 'true', True, 1)
         return False
