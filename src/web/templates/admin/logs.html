@@ -628,9 +628,10 @@
             // Исключаем из "нет ответа":
             // - 'disambiguation_shown', 'disambiguation': это уточнение, не ошибка
             // - 'clarification': RAG просит уточнить вопрос (слишком широкий запрос)
-            const isClarificationOrDisambiguation = ['disambiguation_shown', 'disambiguation', 'clarification'].includes(log.search_level);
+            // - 'direct': прямая отправка сообщения (приветствие, рассылка)
+            const isSpecialSearchLevel = ['disambiguation_shown', 'disambiguation', 'clarification', 'direct'].includes(log.search_level);
             const isExplicitNoAnswer = ['none', 'no_answer'].includes(log.search_level);
-            const noAnswer = (isExplicitNoAnswer || (!log.faq_id || (log.similarity_score && log.similarity_score < similarityThreshold))) && !isClarificationOrDisambiguation;
+            const noAnswer = (isExplicitNoAnswer || (!log.faq_id || (log.similarity_score && log.similarity_score < similarityThreshold))) && !isSpecialSearchLevel;
 
             row.className = "border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors";
             row.dataset.queryId = log.query_id;
